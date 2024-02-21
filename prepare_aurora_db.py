@@ -110,20 +110,20 @@ for s in user_secrets["SecretList"]:
             continue
 
     # Grant the role to the admin user
-    try:
-        grant_sql = f"GRANT {username} TO {admin_username}"
-        rds_data_client.execute_statement(
-            resourceArn=aurora_cluster_arn,
-            secretArn=admin_secret_arn,
-            sql=grant_sql,
-            database=database_name,
-        )
-        console.print(
-            f" - Granted user {username} to {admin_username}", style="bold green"
-        )
-    except ClientError as e:
-        console.print(f" ! Unexpected error granting {username} role to {admin_username}: {e}", style="bold red")
-        continue
+    #try:
+    #    grant_sql = f"GRANT {username} TO {admin_username}"
+    #    rds_data_client.execute_statement(
+    #        resourceArn=aurora_cluster_arn,
+    #        secretArn=admin_secret_arn,
+    #        sql=grant_sql,
+    #        database=database_name,
+    #    )
+    #    console.print(
+    #        f" - Granted user {username} to {admin_username}", style="bold green"
+    #    )
+    #except ClientError as e:
+    #    console.print(f" ! Unexpected error granting {username} role to {admin_username}: {e}", style="bold red")
+    #    continue
 
     # create the schema
     try:

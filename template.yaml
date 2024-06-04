@@ -31,7 +31,7 @@ Parameters:
     Type: String
 
   VpcIdParameter:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::VPC::Id>
+    Type: AWS::EC2::VPC::Id
     Description: The ID of the VPC to deploy the database and Lambda functions into.
 
   DatabaseSubnetListParameter:

@@ -350,12 +350,12 @@ Resources:
                       IntervalSeconds: 2
                       MaxAttempts: 6
                       BackoffRate: 6
-                   Catch:
+                  Catch:
                     - ErrorEquals:
                       - States.TaskFailed
                       ResultPath: "$.error"
                       Next: TableFailed
-                 Next: CheckInitState
+                  Next: CheckInitState
                 CheckInitState:
                   Type: Choice
                   Choices:

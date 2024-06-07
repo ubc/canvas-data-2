@@ -138,3 +138,36 @@ for s in user_secrets["SecretList"]:
     except ClientError as e:
         console.print(f" ! Unexpected error creating schema {username}: {e}", style="bold red")
         continue
+
+    # create the instructure_dap schema
+    try:
+        schema_sql = f"CREATE SCHEMA IF NOT EXISTS instructure_dap AUTHORIZATION {username}"
+        rds_data_client.execute_statement(
+            resourceArn=aurora_cluster_arn,
+            secretArn=admin_secret_arn,
+            sql=schema_sql,
+            database=database_name,
+        )
+        console.print(
+            f" - Created schema [bold]instructure_dap[/bold] in database [bold]{database_name}[/bold]",
+            style="green",
+        )
+    except ClientError as e:
+        console.print(f" ! Unexpected error: {e}", style="bold red")
+        continue
+
+    # grant create permission on database to canvas user
+    try:
+        grant_sql = f"GRANT CREATE ON DATABASE {database_name} TO {username}"
+        rds_data_client.execute_statement(
+            resourceArn=aurora_cluster_arn,
+            secretArn=admin_secret_arn,
+            sql=grant_sql,
+            database="postgres",
+        )
+        console.print(
+            f" - Granted CREATE on database {database_name} to user {username}",
+            style="bold green",
+        )
+    except ClientError as e:
+        console.print(f" ! Unexpected error: {e}", style="bold red")

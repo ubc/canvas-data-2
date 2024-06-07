@@ -59,8 +59,8 @@ Resources:
       GenerateSecretString:
         SecretStringTemplate: '{"username": "canvas"}'
         GenerateStringKey: password
-        PasswordLength: 16
-        ExcludeCharacters: ":\"'@/\\"
+        PasswordLength: 24
+        ExcludePunctuation: true
       KmsKeyId: !Ref KmsKey
 
   DatabaseSubnetGroup:

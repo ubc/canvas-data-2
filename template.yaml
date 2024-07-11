@@ -15,6 +15,7 @@ Parameters:
     Type: String
     AllowedValues:
       - "dev"
+      - "stg"
       - "prod"
     Default: "dev"
 
@@ -42,6 +43,26 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the Lambda functions into.
 
+  DatabaseAdminUserParameter:
+    Description: Name of the RDS admin user
+    Type: String
+
+  DatabaseCd2UserParameter:
+    Description: Name of the RDS admin user
+    Type: String
+
+  ResourcePrefixParameter:
+    Description: Prefix for resource names
+    Type: String
+
+  TagNameParameter:
+    Description: Name for a cost tag
+    Type: String
+
+  TagValueParameter:
+    Description: Value for a cost tag
+    Type: String    
+
 Resources:
 
   KmsKey:
@@ -49,19 +70,25 @@ Resources:
     Properties:
       Description: KMS key for encrypting secrets
       Enabled: true
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub uw-cd2-db-user-${EnvironmentParameter}-canvas
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
       Description: Aurora database user secret for canvas user
       GenerateSecretString:
-        SecretStringTemplate: '{"username": "canvas"}'
+        SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
         GenerateStringKey: password
         PasswordLength: 24
         ExcludePunctuation: true
       KmsKeyId: !Ref KmsKey
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -92,13 +119,16 @@ Resources:
           ToPort: 5432
           SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
         # TODO: add more ingress rules based on parameter(s)
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster
     Properties:
       Engine: aurora-postgresql
       EngineVersion: 15.5
-      MasterUsername: cd2admin
+      MasterUsername: !Sub ${DatabaseAdminUserParameter}
       ManageMasterUserPassword: true
       MasterUserSecret:
         KmsKeyId: !Ref KmsKey
@@ -114,6 +144,9 @@ Resources:
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
       StorageEncrypted: true
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   # Attach Canvas database user Secret to the cluster
   DatabaseUserSecretAttachmentCanvas:
@@ -129,6 +162,9 @@ Resources:
       Engine: aurora-postgresql
       DBInstanceClass: db.serverless
       DBClusterIdentifier: !Ref AuroraDatabaseCluster
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}            
 
   ListTablesFunction:
     Type: AWS::Serverless::Function
@@ -187,7 +223,6 @@ Resources:
           DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
           ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
           DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
-
       Timeout: 900
       MemorySize: 2048
       VpcConfig:
@@ -228,6 +263,9 @@ Resources:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -262,6 +300,9 @@ Resources:
                   - sns:Publish
                 Resource:
                   - !Ref WorkflowNotificationTopic
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -395,9 +436,9 @@ Outputs:
     Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
     Description: The ARN of the Aurora admin user secret
     Export:
-      Name: !Sub uw-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
+      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
   AuroraClusterArn:
     Value: !GetAtt AuroraDatabaseCluster.DBClusterArn
     Description: The ARN of the Aurora cluster
     Export:
-      Name: !Sub uw-cd2-aurora-cluster-arn-${EnvironmentParameter}
+      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}

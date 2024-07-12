@@ -48,7 +48,7 @@ Resources:
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub uw-cd2-db-user-${EnvironmentParameter}-canvas
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
       Description: Aurora database user secret for canvas user
       GenerateSecretString:
         SecretStringTemplate: '{"username": "canvas"}'
@@ -60,7 +60,7 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub uw-cd2-subnetgroup-${EnvironmentParameter}
+      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds:
         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetA
         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetB
@@ -68,21 +68,21 @@ Resources:
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-database-client-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       VpcId:
         Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
 
   EmptySecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-empty-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
       VpcId: 
         Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-database-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
       VpcId: 
         Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
       SecurityGroupIngress:
@@ -399,9 +399,9 @@ Outputs:
     Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
     Description: The ARN of the Aurora admin user secret
     Export:
-      Name: !Sub uw-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
+      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
   AuroraClusterArn:
     Value: !GetAtt AuroraDatabaseCluster.DBClusterArn
     Description: The ARN of the Aurora cluster
     Export:
-      Name: !Sub uw-cd2-aurora-cluster-arn-${EnvironmentParameter}
+      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}

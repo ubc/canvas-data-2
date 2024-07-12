@@ -21,6 +21,7 @@ Parameters:
     Type: String
     AllowedValues:
       - "dev"
+      - "stg"
       - "prod"
     Default: "dev"
 

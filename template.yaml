@@ -35,6 +35,7 @@ Parameters:
 
   SkipTablesParameter:
     Type: String
+    Default: ""
 
 Resources:
 

@@ -180,8 +180,7 @@ Resources:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure          
+        lthub:service: la-data-infrastructure
 
   SyncTableFunction:
     Type: AWS::Serverless::Function
@@ -224,8 +223,7 @@ Resources:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure          
+        lthub:service: la-data-infrastructure
 
   InitTableFunction:
     Type: AWS::Serverless::Function
@@ -258,8 +256,7 @@ Resources:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure          
+        lthub:service: la-data-infrastructure    
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
@@ -304,7 +301,7 @@ Resources:
                   - !Ref WorkflowNotificationTopic
       Tags: 
         - Key: lthub:service
-          Value: la-data-infrastructure                  
+          Value: la-data-infrastructure
 
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -433,8 +430,7 @@ Resources:
               TopicArn: !Ref WorkflowNotificationTopic
             End: true
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure            
+        lthub:service: la-data-infrastructure
 
 Outputs:
   AdminSecretArn:

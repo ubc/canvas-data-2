@@ -43,6 +43,9 @@ Resources:
     Properties:
       Description: KMS key for encrypting secrets
       Enabled: true
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
@@ -56,6 +59,9 @@ Resources:
         PasswordLength: 24
         ExcludePunctuation: true
       KmsKeyId: !Ref KmsKey
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure      
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -64,6 +70,9 @@ Resources:
       SubnetIds:
         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetA
         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetB
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure        
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -71,6 +80,9 @@ Resources:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       VpcId:
         Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure        
 
   EmptySecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -78,6 +90,9 @@ Resources:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
       VpcId: 
         Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure        
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -91,6 +106,9 @@ Resources:
           ToPort: 5432
           SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
         # TODO: add more ingress rules based on parameter(s)
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure        
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster
@@ -113,6 +131,9 @@ Resources:
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
       StorageEncrypted: true
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure      
 
   # Attach Canvas database user Secret to the cluster
   DatabaseUserSecretAttachmentCanvas:
@@ -128,6 +149,9 @@ Resources:
       Engine: aurora-postgresql
       DBInstanceClass: db.serverless
       DBClusterIdentifier: !Ref AuroraDatabaseCluster
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure            
 
   ListTablesFunction:
     Type: AWS::Serverless::Function
@@ -154,7 +178,10 @@ Resources:
           - !Ref EmptySecurityGroup
         SubnetIds:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB        
+          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure          
 
   SyncTableFunction:
     Type: AWS::Serverless::Function
@@ -196,6 +223,9 @@ Resources:
         SubnetIds:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure          
 
   InitTableFunction:
     Type: AWS::Serverless::Function
@@ -226,12 +256,18 @@ Resources:
           - !Ref DatabaseClientSecurityGroup
         SubnetIds:
           - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB        
+          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure          
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
       DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure      
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -266,6 +302,9 @@ Resources:
                   - sns:Publish
                 Resource:
                   - !Ref WorkflowNotificationTopic
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure                  
 
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -393,6 +432,9 @@ Resources:
               Message.$: "$"
               TopicArn: !Ref WorkflowNotificationTopic
             End: true
+      Tags: 
+        - Key: lthub:service
+          Value: la-data-infrastructure            
 
 Outputs:
   AdminSecretArn:

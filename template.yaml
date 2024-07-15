@@ -43,6 +43,10 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the Lambda functions into.
 
+  ResourcePrefixParameter:
+    Description: Prefix for resource names
+    Type: String
+
 Resources:
 
   KmsKey:

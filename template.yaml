@@ -11,12 +11,6 @@ Description: >
   A Step Function is used to orchestrate the synchronization operations.
 
 Parameters:
-  
-  ResourcePrefixParameter:
-    Description: Prefix for resources
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Default: /common/resourcePrefix
-  
   EnvironmentParameter:
     Type: String
     AllowedValues:
@@ -36,7 +30,18 @@ Parameters:
 
   SkipTablesParameter:
     Type: String
-    Default: ""
+
+  VpcIdParameter:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of the VPC to deploy the database and Lambda functions into.
+
+  DatabaseSubnetListParameter:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of one or more subnets to deploy the database into.
+
+  LambdaSubnetListParameter:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of one or more subnets to deploy the Lambda functions into.
 
 Resources:
 
@@ -68,40 +73,26 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
-      SubnetIds:
-        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetA
-        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--protectedSubnetB
-      Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure        
+      DBSubnetGroupDescription: !Sub uw-cd2-subnetgroup-${EnvironmentParameter}
+      SubnetIds: !Ref DatabaseSubnetListParameter
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
-      VpcId:
-        Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
-      Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure        
+      GroupDescription: !Sub uw-cd2-database-client-sg-${EnvironmentParameter}
+      VpcId: !Ref VpcIdParameter
 
   EmptySecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
-      VpcId: 
-        Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
-      Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure        
+      GroupDescription: !Sub uw-cd2-empty-sg-${EnvironmentParameter}
+      VpcId: !Ref VpcIdParameter
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
-      VpcId: 
-        Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--id
+      GroupDescription: !Sub uw-cd2-database-sg-${EnvironmentParameter}
+      VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 5432
@@ -178,11 +169,7 @@ Resources:
       VpcConfig:
         SecurityGroupIds:
           - !Ref EmptySecurityGroup
-        SubnetIds:
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-      Tags: 
-        lthub:service: la-data-infrastructure
+        SubnetIds: !Ref LambdaSubnetListParameter
 
   SyncTableFunction:
     Type: AWS::Serverless::Function
@@ -216,16 +203,13 @@ Resources:
           DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
           ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
           DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
+
       Timeout: 900
       MemorySize: 2048
       VpcConfig:
         SecurityGroupIds:
           - !Ref DatabaseClientSecurityGroup
-        SubnetIds:
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-      Tags: 
-        lthub:service: la-data-infrastructure
+        SubnetIds: !Ref LambdaSubnetListParameter
 
   InitTableFunction:
     Type: AWS::Serverless::Function
@@ -254,11 +238,7 @@ Resources:
       VpcConfig:
         SecurityGroupIds:
           - !Ref DatabaseClientSecurityGroup
-        SubnetIds:
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-          - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-      Tags: 
-        lthub:service: la-data-infrastructure    
+        SubnetIds: !Ref LambdaSubnetListParameter
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic

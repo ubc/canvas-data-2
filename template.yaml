@@ -47,6 +47,14 @@ Parameters:
     Description: Prefix for resource names
     Type: String
 
+  TagNameParameter:
+    Description: Name for a cost tag
+    Type: String
+
+  TagValueParameter:
+    Description: Value for a cost tag
+    Type: String    
+
 Resources:
 
   KmsKey:
@@ -55,8 +63,8 @@ Resources:
       Description: KMS key for encrypting secrets
       Enabled: true
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
@@ -71,8 +79,8 @@ Resources:
         ExcludePunctuation: true
       KmsKeyId: !Ref KmsKey
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure      
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -104,8 +112,8 @@ Resources:
           SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
         # TODO: add more ingress rules based on parameter(s)
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure        
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster
@@ -129,8 +137,8 @@ Resources:
       BackupRetentionPeriod: 7
       StorageEncrypted: true
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure      
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   # Attach Canvas database user Secret to the cluster
   DatabaseUserSecretAttachmentCanvas:
@@ -147,8 +155,8 @@ Resources:
       DBInstanceClass: db.serverless
       DBClusterIdentifier: !Ref AuroraDatabaseCluster
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure            
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}            
 
   ListTablesFunction:
     Type: AWS::Serverless::Function
@@ -207,7 +215,6 @@ Resources:
           DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
           ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
           DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
-
       Timeout: 900
       MemorySize: 2048
       VpcConfig:
@@ -249,8 +256,8 @@ Resources:
     Properties:
       DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure      
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -286,8 +293,8 @@ Resources:
                 Resource:
                   - !Ref WorkflowNotificationTopic
       Tags: 
-        - Key: lthub:service
-          Value: la-data-infrastructure
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
@@ -415,8 +422,6 @@ Resources:
               Message.$: "$"
               TopicArn: !Ref WorkflowNotificationTopic
             End: true
-      Tags: 
-        lthub:service: la-data-infrastructure
 
 Outputs:
   AdminSecretArn:

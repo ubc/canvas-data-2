@@ -43,6 +43,14 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the Lambda functions into.
 
+  DatabaseAdminUserParameter:
+    Description: Name of the RDS admin user
+    Type: String
+
+  DatabaseCd2UserParameter:
+    Description: Name of the RDS admin user
+    Type: String
+
   ResourcePrefixParameter:
     Description: Prefix for resource names
     Type: String
@@ -73,7 +81,7 @@ Resources:
       Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
       Description: Aurora database user secret for canvas user
       GenerateSecretString:
-        SecretStringTemplate: '{"username": "canvas"}'
+        SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
         GenerateStringKey: password
         PasswordLength: 24
         ExcludePunctuation: true
@@ -120,7 +128,7 @@ Resources:
     Properties:
       Engine: aurora-postgresql
       EngineVersion: 15.5
-      MasterUsername: cd2admin
+      MasterUsername: !Sub ${DatabaseAdminUserParameter}
       ManageMasterUserPassword: true
       MasterUserSecret:
         KmsKeyId: !Ref KmsKey

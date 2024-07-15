@@ -9,7 +9,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      python: 3.9
+      python: 3.11
   build:
     commands:
       - sam build --template-file template.yaml

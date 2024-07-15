@@ -7,7 +7,10 @@
 version: 0.2
 
 phases:
-  build:    
+  install:
+    runtime-versions:
+      python: 3.9
+  build:
     commands:
       - sam build --template-file template.yaml
       - aws cloudformation package --template-file template.yaml --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml

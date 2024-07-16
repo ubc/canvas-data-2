@@ -259,6 +259,109 @@ Resources:
           - !Ref DatabaseClientSecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
 
+  FargateCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+
+  FargateLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/fargate
+
+  FargateExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+            - events.amazonaws.com
+      Path: '/'
+      Policies:
+      - PolicyName: iam_pass_role
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - !Sub ${InitTableTaskRole.Arn}
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  InitTableTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+            - events.amazonaws.com
+      Path: '/'
+      Policies:
+      - PolicyName: parameter-store
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ssm:DescribeParameters
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:GetParameters
+            - ssm:GetParameter
+            - ssm:GetParametersByPath
+            Resource: !Sub arn:aws:ssm:${AWS::StackName}:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+      - PolicyName: secrets
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource: !Ref DatabaseUserSecretCanvas
+      - PolicyName: kms
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - kms:Decrypt
+            Resource: !GetAtt KmsKey.Arn
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
+
+  InitTableTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-InitTable
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
+      TaskRoleArn: !Sub ${InitTableTaskRole.Arn}
+      ContainerDefinitions:
+      - Name: !Sub ${AWS::StackName}-InitTable-Container
+        Cpu: 256
+        Memory: 512
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}-InitTable:latest
+        Essential: true
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref FargateLogsGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: InitTable
+
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -376,27 +479,50 @@ Resources:
                       StringEquals: needs_init
                       Next: InitTable
                   Default: TableComplete
+                # InitTable:
+                #   Type: Task
+                #   Resource: arn:aws:states:::lambda:invoke
+                #   Parameters:
+                #     Payload.$: "$.Payload"
+                #     FunctionName: !Ref InitTableFunction
+                #   Retry:
+                #     - ErrorEquals:
+                #       - Lambda.ServiceException
+                #       - Lambda.AWSLambdaException
+                #       - Lambda.SdkClientException
+                #       - Lambda.TooManyRequestsException
+                #       IntervalSeconds: 2
+                #       MaxAttempts: 6
+                #       BackoffRate: 6
+                #   Catch:
+                #     - ErrorEquals:
+                #       - States.TaskFailed
+                #       ResultPath: "$.error"
+                #       Next: TableFailed
+                #   Next: CheckInitState
                 InitTable:
-                  Type: Task
-                  Resource: arn:aws:states:::lambda:invoke
+                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
                   Parameters:
-                    Payload.$: "$.Payload"
-                    FunctionName: !Ref InitTableFunction
-                  Retry:
-                    - ErrorEquals:
-                      - Lambda.ServiceException
-                      - Lambda.AWSLambdaException
-                      - Lambda.SdkClientException
-                      - Lambda.TooManyRequestsException
-                      IntervalSeconds: 2
-                      MaxAttempts: 6
-                      BackoffRate: 6
-                  Catch:
-                    - ErrorEquals:
-                      - States.TaskFailed
-                      ResultPath: "$.error"
-                      Next: TableFailed
-                  Next: CheckInitState
+                    LaunchType: FARGATE
+                    Cluster: !Ref FargateCluster
+                    TaskDefinition: !Ref InitTableTaskDefinition
+                    NetworkConfiguration:
+                      AwsvpcConfiguration:
+                        AssignPublicIp: ENABLED
+                        # Need to look into why Andrew used this wide-open security group...
+                        SecurityGroups:
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--commonOpenEndpointsSecurityGroup
+                        Subnets: !Ref LambdaSubnetListParameter
+                    Overrides:
+                      ContainerOverrides:
+                      - Name: !Sub ${AWS::StackName}-InitTable
+                        Environment:
+                        - Name: TABLE_NAME
+                          Value.$: $.Payload
+                        - Name: TASK_TOKEN
+                          Value.$: $$.Task.Token
+                  TimeoutSeconds: 7200
+                  End: true                
                 CheckInitState:
                   Type: Choice
                   Choices:

@@ -63,6 +63,9 @@ Parameters:
     Description: Value for a cost tag
     Type: String    
 
+  EcrAccountNumberParameter:
+    Type: String    
+
 Resources:
 
   KmsKey:
@@ -335,6 +338,20 @@ Resources:
             Action:
             - kms:Decrypt
             Resource: !GetAtt KmsKey.Arn
+      - PolicyName: ecr
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:GetDownloadUrlForLayer
+            - ecr:BatchGetImage
+            - ecr:DescribeRepositories
+            - ecr:DescribeImages
+            - ecr:GetAuthorizationToken
+            Resource:
+            - !Sub arn:aws:ecr:${AWS::Region}:${ECRAccountNumberParameter}:repository/*
+            - "*"            
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
 

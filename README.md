@@ -57,8 +57,13 @@ The first command will build the source of your application. The second command 
 
 ## Preparing the database
 
-Deploying this application will create an AWS Aurora Postgres cluster. A database user credential is also created and stored in AWS Secrets Manager. In order for the application to use that credential to connect to the database,
-a Postgresql user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. After deploying the SAM app, run this script:
+Deploying this application will create:
+
+- An Aurora Postgres cluster
+- A database user credential in AWS Secrets Manager.
+
+In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. After deploying the SAM app, run this script. You must have valid AWS credentials before running the script.
+
 ```
 ./prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
 ```

@@ -31,7 +31,7 @@ phases:
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG      
       - echo Starting SAM build...
       - sam build --template-file template.yaml
-      - aws cloudformation package --template-file template.yaml --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml
+      - sam package --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml
 
   post_build:
     commands:

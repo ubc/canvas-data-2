@@ -3,6 +3,8 @@
 # Required environment variables:
 #  ARTIFACTS_BUCKET     = S3 bucket name/path for the artifacts upload
 #  ARTIFACTS_KMS_ID     = KMS key ID used for artifacts bucket
+#  REPOSITORY_URI       = Repo for container image
+#  AWS_ACCOUNT_ID       = Account ID of AWS
 
 version: 0.2
 
@@ -33,7 +35,6 @@ phases:
 
   post_build:
     commands:
-      - echo Build completed on `date`
       - echo Pushing Docker image to $REPOSITORY_URI:$IMAGE_TAG...
       - docker push $REPOSITORY_URI:latest
       - docker push $REPOSITORY_URI:$IMAGE_TAG

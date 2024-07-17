@@ -350,7 +350,7 @@ Resources:
             - ecr:DescribeImages
             - ecr:GetAuthorizationToken
             Resource:
-            - !Sub arn:aws:ecr:${AWS::Region}:${ECRAccountNumberParameter}:repository/*
+            - !Sub arn:aws:ecr:${AWS::Region}:${EcrAccountNumberParameter}:repository/*
             - "*"            
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
@@ -518,6 +518,7 @@ Resources:
                 #       Next: TableFailed
                 #   Next: CheckInitState
                 InitTable:
+                  Type: Task
                   Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
                   Parameters:
                     LaunchType: FARGATE
@@ -525,21 +526,39 @@ Resources:
                     TaskDefinition: !Ref InitTableTaskDefinition
                     NetworkConfiguration:
                       AwsvpcConfiguration:
+                        # Why public IP?
                         AssignPublicIp: ENABLED
                         # Need to look into why Andrew used this wide-open security group...
                         SecurityGroups:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--commonOpenEndpointsSecurityGroup
-                        Subnets: !Ref LambdaSubnetListParameter
+                        Subnets:
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB                        
                     Overrides:
                       ContainerOverrides:
                       - Name: !Sub ${AWS::StackName}-InitTable
                         Environment:
                         - Name: TABLE_NAME
-                          Value.$: $.Payload
+                          Value.$: States.JsonToString($.Payload)
                         - Name: TASK_TOKEN
                           Value.$: $$.Task.Token
                   TimeoutSeconds: 7200
-                  End: true                
+                  Retry:
+                    - ErrorEquals:
+                      - ECS.ServiceException
+                      - ECS.ThrottlingException
+                      - ECS.ClientException
+                      - ECS.ClusterNotFoundException
+                      - ECS.TaskSetNotFoundException
+                      IntervalSeconds: 2
+                      MaxAttempts: 6
+                      BackoffRate: 6
+                  Catch:
+                    - ErrorEquals:
+                      - States.TaskFailed
+                      ResultPath: "$.error"
+                      Next: TableFailed
+                  Next: CheckInitState
                 CheckInitState:
                   Type: Choice
                   Choices:

@@ -73,7 +73,7 @@ async def init_table(credentials, api_base_url, db_connection, namespace, table_
 
 if __name__ == "__main__":
     task_token = os.environ.get('TASK_TOKEN')
-    event = os.environ.get('PAYLOAD')
+    event = json.loads(os.environ.get('PAYLOAD'))
 
     result = None
     try:

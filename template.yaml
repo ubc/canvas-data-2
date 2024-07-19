@@ -585,7 +585,7 @@ Resources:
                           Value: INFO
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
-                  TimeoutSeconds: 7200
+                  TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
                       - ECS.ServiceException

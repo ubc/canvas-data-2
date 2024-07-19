@@ -55,13 +55,22 @@ The first command will build the source of your application. The second command 
 * **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
 * **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
 
-## Preparing the database
+## Initial Database Setup
 
-Deploying this application will create an AWS Aurora Postgres cluster. A database user credential is also created and stored in AWS Secrets Manager. In order for the application to use that credential to connect to the database,
-a Postgresql user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. After deploying the SAM app, run this script:
+Deploying this application will create:
+
+- An Aurora Postgres cluster
+- A database user credential in AWS Secrets Manager.
+
+In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. 
+
+After deploying the SAM app, run this script. You must have valid AWS credentials before running the script.
+
 ```
-./prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
+pip install setup/requirements.txt -r
+./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
 ```
+
 Occasionally the schema for a CD2 table will change. The DAP library will take care of applying these changes to the database, but they will not succeed if you have created views that depend on the table. To handle this situation, the `sync_table` Lambda function will attempt to drop and recreate any views that depend on the table being synced. The pgsql functions necessary to do this can be found in this repository: https://github.com/rvkulikov/pg-deps-management. You will need to run the `ddl.sql` script in your database to create the necessary functions. (details tbd)
 
 ## Configuration

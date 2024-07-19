@@ -3,6 +3,8 @@
 # Required environment variables:
 #  ARTIFACTS_BUCKET     = S3 bucket name/path for the artifacts upload
 #  ARTIFACTS_KMS_ID     = KMS key ID used for artifacts bucket
+#  REPOSITORY_URI       = Repo for container image
+#  AWS_ACCOUNT_ID       = Account ID of AWS
 
 version: 0.2
 
@@ -10,14 +12,32 @@ phases:
   install:
     runtime-versions:
       python: 3.11
-  pre_build:
     commands:
       - pip install --upgrade pip
       - pip install awscli aws-sam-cli
+
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws --version
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+
   build:
     commands:
+      - echo Starting Docker build for init_table...
+      - docker build -t $REPOSITORY_URI:latest $CODEBUILD_SRC_DIR/init_table/
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG      
+      - echo Starting SAM build...
       - sam build --template-file template.yaml
-      - aws cloudformation package --template-file template.yaml --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml
+      - sam package --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml
+
+  post_build:
+    commands:
+      - echo Pushing Docker image to $REPOSITORY_URI:$IMAGE_TAG...
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
 
 artifacts:
   files:

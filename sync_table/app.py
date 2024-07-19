@@ -1,5 +1,6 @@
 import asyncio
 import os
+from urllib.parse import quote_plus
 
 import boto3
 from aws_lambda_powertools import Logger

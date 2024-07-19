@@ -63,6 +63,9 @@ Parameters:
     Description: Value for a cost tag
     Type: String    
 
+  EcrAccountNumberParameter:
+    Type: String    
+
 Resources:
 
   KmsKey:
@@ -93,25 +96,25 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub uw-cd2-subnetgroup-${EnvironmentParameter}
+      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-database-client-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
 
   EmptySecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-empty-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub uw-cd2-database-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -139,7 +142,7 @@ Resources:
       DatabaseName: cd2
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5
-        MaxCapacity: 4
+        MaxCapacity: 16
       DeletionProtection: false
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
@@ -259,6 +262,133 @@ Resources:
           - !Ref DatabaseClientSecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
 
+  FargateCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+
+  FargateLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/fargate
+
+  FargateExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+            - events.amazonaws.com
+      Path: '/'
+      Policies:
+      - PolicyName: iam_pass_role
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource:
+            - !Sub ${InitTableTaskRole.Arn}
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  InitTableTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Action:
+          - sts:AssumeRole
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+            - events.amazonaws.com
+      Path: '/'
+      Policies:
+      - PolicyName: parameter-store
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ssm:DescribeParameters
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:GetParameters
+            - ssm:GetParameter
+            - ssm:GetParametersByPath
+            Resource: !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/stg/canvas_data_2*
+      - PolicyName: secrets
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource: !Ref DatabaseUserSecretCanvas
+      - PolicyName: kms
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - kms:Decrypt
+            Resource: !GetAtt KmsKey.Arn
+      - PolicyName: ecr
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:GetDownloadUrlForLayer
+            - ecr:BatchGetImage
+            - ecr:DescribeRepositories
+            - ecr:DescribeImages
+            - ecr:GetAuthorizationToken
+            Resource:
+            - !Sub arn:aws:ecr:${AWS::Region}:${EcrAccountNumberParameter}:repository/*
+      - PolicyName: state_machine
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - states:SendTaskSuccess
+            - states:SendTaskFailure
+            # An explicit reference to the CD2 State Machine creates a CloudFormation circular dependency
+            # This isn't a great work-around.
+            Resource:
+            - '*'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
+
+  InitTableTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-InitTable
+      Cpu: 1024
+      Memory: 8192
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
+      TaskRoleArn: !Sub ${InitTableTaskRole.Arn}
+      ContainerDefinitions:
+      - Name: !Sub ${AWS::StackName}-InitTable
+        Cpu: 1024
+        Memory: 8192
+        Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
+        Essential: true
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref FargateLogsGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: InitTable
+
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -280,7 +410,7 @@ Resources:
             Action: "sts:AssumeRole"
       Path: "/"
       Policies:
-        - PolicyName: StatesExecutionPolicy
+        - PolicyName: LambdaExecutionPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -291,6 +421,24 @@ Resources:
                   - !Sub "${ListTablesFunction.Arn}*"
                   - !Sub "${SyncTableFunction.Arn}*"
                   - !Sub "${InitTableFunction.Arn}*"
+        - PolicyName: ECSExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ecs:RunTask"
+                Resource:
+                  - !Sub "${InitTableTaskDefinition}*"
+        - PolicyName: PassRole
+          PolicyDocument:
+            Statement:
+            - Effect: Allow
+              Action:
+              - iam:PassRole
+              Resource:
+              - !Sub ${FargateExecutionRole.Arn}
+              - !Sub ${InitTableTaskRole.Arn}
         - PolicyName: NotificationPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -300,6 +448,17 @@ Resources:
                   - sns:Publish
                 Resource:
                   - !Ref WorkflowNotificationTopic
+        - PolicyName: EventRules
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctions*
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -376,18 +535,64 @@ Resources:
                       StringEquals: needs_init
                       Next: InitTable
                   Default: TableComplete
+                # InitTable:
+                #   Type: Task
+                #   Resource: arn:aws:states:::lambda:invoke
+                #   Parameters:
+                #     Payload.$: "$.Payload"
+                #     FunctionName: !Ref InitTableFunction
+                #   Retry:
+                #     - ErrorEquals:
+                #       - Lambda.ServiceException
+                #       - Lambda.AWSLambdaException
+                #       - Lambda.SdkClientException
+                #       - Lambda.TooManyRequestsException
+                #       IntervalSeconds: 2
+                #       MaxAttempts: 6
+                #       BackoffRate: 6
+                #   Catch:
+                #     - ErrorEquals:
+                #       - States.TaskFailed
+                #       ResultPath: "$.error"
+                #       Next: TableFailed
+                #   Next: CheckInitState
                 InitTable:
                   Type: Task
-                  Resource: arn:aws:states:::lambda:invoke
+                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
                   Parameters:
-                    Payload.$: "$.Payload"
-                    FunctionName: !Ref InitTableFunction
+                    LaunchType: FARGATE
+                    Cluster: !Ref FargateCluster
+                    TaskDefinition: !Ref InitTableTaskDefinition
+                    NetworkConfiguration:
+                      AwsvpcConfiguration:
+                        AssignPublicIp: DISABLED
+                        SecurityGroups:
+                        - !Ref DatabaseClientSecurityGroup
+                        Subnets:
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB                        
+                    Overrides:
+                      ContainerOverrides:
+                      - Name: !Sub ${AWS::StackName}-InitTable
+                        Environment:
+                        - Name: TASK_TOKEN
+                          Value.$: $$.Task.Token
+                        - Name: TABLE_NAME
+                          Value.$: States.JsonToString($.Payload)
+                        - Name: ENV
+                          Value: !Ref EnvironmentParameter
+                        - Name: LOG_LEVEL
+                          Value: INFO
+                        - Name: DB_USER_SECRET_NAME
+                          Value: !Ref DatabaseUserSecretCanvas
+                  TimeoutSeconds: 7200
                   Retry:
                     - ErrorEquals:
-                      - Lambda.ServiceException
-                      - Lambda.AWSLambdaException
-                      - Lambda.SdkClientException
-                      - Lambda.TooManyRequestsException
+                      - ECS.ServiceException
+                      - ECS.ThrottlingException
+                      - ECS.ClientException
+                      - ECS.ClusterNotFoundException
+                      - ECS.TaskSetNotFoundException
                       IntervalSeconds: 2
                       MaxAttempts: 6
                       BackoffRate: 6

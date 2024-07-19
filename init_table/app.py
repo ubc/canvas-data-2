@@ -1,9 +1,12 @@
 import asyncio
 import os
+import boto3
+import json
+from urllib.parse import quote_plus
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
-from aws_lambda_powertools.utilities.typing import LambdaContext
+#from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.config import Config
 from dap.dap_types import Credentials
 from dap.integration.database import DatabaseConnection
@@ -11,6 +14,8 @@ from dap.api import DAPClient
 from dap.replicator.sql import SQLReplicator
 
 region = os.environ.get('AWS_REGION')
+
+stepfunctions = boto3.client('stepfunctions')
 
 config = Config(region_name=region)
 ssm_provider = parameters.SSMProvider(config=config)
@@ -26,10 +31,8 @@ api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.c
 
 namespace = 'canvas'
 
-
-def lambda_handler(event, context: LambdaContext):
+def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
-
     dap_client_id = params['dap_client_id']
     dap_client_secret = params['dap_client_secret']
 
@@ -46,7 +49,6 @@ def lambda_handler(event, context: LambdaContext):
     credentials = Credentials.create(client_id=dap_client_id, client_secret=dap_client_secret)
 
     table_name = event['table_name']
-
     logger.info(f"initting table: {table_name}")
 
     os.chdir("/tmp/")
@@ -60,12 +62,43 @@ def lambda_handler(event, context: LambdaContext):
     except Exception as e:
         logger.exception(e)
         event['state'] = 'failed'
+        return event
 
     logger.info(f"event: {event}")
 
     return event
 
-
 async def init_table(credentials, api_base_url, db_connection, namespace, table_name):
     async with DAPClient(api_base_url, credentials) as session:
         await SQLReplicator(session, db_connection).initialize(namespace, table_name)
+
+if __name__ == "__main__":
+    event = json.loads(os.environ.get('TABLE_NAME'))
+    token = os.environ.get('TASK_TOKEN')
+
+    payload = None
+    result = None
+
+    try:
+        result = start(event)
+
+    except Exception as err:
+        if token:
+            stepfunctions.send_task_failure(
+                taskToken=token,
+                error=f'{err}'
+            )
+        raise err
+
+    payload = {
+        "Payload": result
+    }
+
+    if token and result['state'] == 'complete':
+        stepfunctions.send_task_success(
+            taskToken=token,
+            output=json.dumps(payload))
+    elif token:
+            stepfunctions.send_task_failure(
+            taskToken=token,
+            output=json.dumps(payload))

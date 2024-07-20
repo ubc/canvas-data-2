@@ -101,4 +101,4 @@ if __name__ == "__main__":
     elif token:
             stepfunctions.send_task_failure(
             taskToken=token,
-            output=json.dumps(payload))
+            error=json.dumps(payload))

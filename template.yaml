@@ -371,6 +371,8 @@ Resources:
       Family: !Sub ${AWS::StackName}-InitTable
       Cpu: 1024
       Memory: 8192
+      EphemeralStorage:
+        SizeInGiB: 80
       NetworkMode: awsvpc
       RequiresCompatibilities:
       - FARGATE

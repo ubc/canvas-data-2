@@ -159,6 +159,7 @@ Resources:
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
       StorageEncrypted: true
+      DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}      

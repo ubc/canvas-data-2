@@ -162,7 +162,7 @@ Resources:
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       Tags: 
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
   DatabaseClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -171,6 +171,9 @@ Resources:
       Family: aurora-postgresql15
       Parameters:
         rds.force_ssl: 1
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   # Attach Canvas database user Secret to the cluster
   DatabaseUserSecretAttachmentCanvas:
@@ -251,36 +254,7 @@ Resources:
       MemorySize: 2048
       VpcConfig:
         SecurityGroupIds:
-          - !Ref DatabaseClientSecurityGroup
-        SubnetIds: !Ref LambdaSubnetListParameter
-
-  InitTableFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: init_table/
-      Handler: app.lambda_handler
-      Runtime: python3.11
-      Architectures:
-        - x86_64
-      Policies:
-        - SSMParameterReadPolicy:
-            ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
-        - AWSSecretsManagerGetSecretValuePolicy:
-            SecretArn: !Ref DatabaseUserSecretCanvas
-        - KMSDecryptPolicy:
-            KeyId: !Ref KmsKey
-      Environment:
-        Variables:
-          ENV: !Ref EnvironmentParameter
-          POWERTOOLS_METRICS_NAMESPACE: canvas-data-2
-          POWERTOOLS_SERVICE_NAME: init_table
-          LOG_LEVEL: !Ref LogLevel
-          DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
-      Timeout: 900
-      MemorySize: 8192
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref DatabaseClientSecurityGroup
+          - !If [CreateDatabaseSecurityGroup, !Ref DatabaseClientSecurityGroup, !Ref "AWS::NoValue"]
         SubnetIds: !Ref LambdaSubnetListParameter
 
   FargateCluster:
@@ -443,7 +417,6 @@ Resources:
                 Resource:
                   - !Sub "${ListTablesFunction.Arn}*"
                   - !Sub "${SyncTableFunction.Arn}*"
-                  - !Sub "${InitTableFunction.Arn}*"
         - PolicyName: ECSExecutionPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -558,27 +531,6 @@ Resources:
                       StringEquals: needs_init
                       Next: InitTable
                   Default: TableComplete
-                # InitTable:
-                #   Type: Task
-                #   Resource: arn:aws:states:::lambda:invoke
-                #   Parameters:
-                #     Payload.$: "$.Payload"
-                #     FunctionName: !Ref InitTableFunction
-                #   Retry:
-                #     - ErrorEquals:
-                #       - Lambda.ServiceException
-                #       - Lambda.AWSLambdaException
-                #       - Lambda.SdkClientException
-                #       - Lambda.TooManyRequestsException
-                #       IntervalSeconds: 2
-                #       MaxAttempts: 6
-                #       BackoffRate: 6
-                #   Catch:
-                #     - ErrorEquals:
-                #       - States.TaskFailed
-                #       ResultPath: "$.error"
-                #       Next: TableFailed
-                #   Next: CheckInitState
                 InitTable:
                   Type: Task
                   Resource: arn:aws:states:::ecs:runTask.waitForTaskToken

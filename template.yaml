@@ -167,7 +167,7 @@ Resources:
     Type: AWS::RDS::DBClusterParameterGroup
     Properties: 
       Description: PostgreSQL parameter group for canvas-data-2
-      Family: aurora-postgresql
+      Family: aurora-postgresql15
       Parameters:
         time_zone: US/Pacific
         rds.force_ssl: 1

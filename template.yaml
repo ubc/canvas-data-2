@@ -11,6 +11,7 @@ Description: >
   A Step Function is used to orchestrate the synchronization operations.
 
 Parameters:
+
   EnvironmentParameter:
     Type: String
     AllowedValues:
@@ -64,7 +65,17 @@ Parameters:
     Type: String    
 
   EcrAccountNumberParameter:
-    Type: String    
+    Type: String
+
+  DatabaseSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the database. If no group is provided, a security group will be created.
+    Default: ''
+
+Conditions:
+
+  ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
+  CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
 
 Resources:
 
@@ -113,6 +124,7 @@ Resources:
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
@@ -137,7 +149,7 @@ Resources:
         KmsKeyId: !Ref KmsKey
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
       VpcSecurityGroupIds:
-          - !Ref DatabaseSecurityGroup
+          - !If [ExistingDatabaseSecurityGroup, !Ref DatabaseSecurityGroupParameter, !Ref DatabaseSecurityGroup]
       Port: 5432
       DatabaseName: cd2
       ServerlessV2ScalingConfiguration:

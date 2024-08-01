@@ -1,44 +1,39 @@
-# canvas-data-2-aws - WORK IN PROGRESS
+# Canvas Data 2 in AWS
 
-This project contains source code and supporting files for a serverless application that you can use to download and maintain a Canvas Data 2 replica database.
-You can deploy this application to your AWS account with the SAM CLI. It includes the following files and folders.
+A serverless application that initializes an Aurora Serverless database with data from [Canvas Data 2](https://community.canvaslms.com/t5/Admin-Guide/What-is-Canvas-Data-2/ta-p/560956) using the [Instructure DAP client](https://pypi.org/project/instructure-dap-client/). The application runs every three hours to sync data. 
 
-- `list_tables` - Code for a Lambda function that fetches the list of CD2 tables using the `dap` client library.
-- `sync_table` - Code for a Lambda function that syncs a table using the `dap` client library.
-- `init_table` - Code for a Lambda function that inits a table using the `dap` client library.
-- `template.yaml` - A template that defines the application's AWS resources.
+**This project is actively under development.**
 
-This application uses an AWS Step Function to orchestrate the workflow:
+## Overview
+The application uses Step Functions to orchestrate a workflow:
 
-![workflow diagram](canvas-data-2-step-function.png)
+1. The State Machine is executed on a schedule via EventBridge.
+2. The first step executes the `ListTables` function which retrieves the list of tables from the Data Access Platform.
+3. The list of tables is passed to the `ProcessTables` step which executes the following steps for each item in the list:
+   1. The `SyncTable` function is executed. This returns `success` or `init_needed` (if the table doesn't exist in the database yet).
+   2. The output of `SyncTable` is checked by `CheckSyncState`. If the table successfully synced, the iteration is complete. If `init_needed` is returned, the `InitTable` task is executed.
+   3. The output of `InitTable` is checked by `CheckInitState`.
+4. Once the list is processed by `ProcessTables`, the results are joined and a notification is sent to an SNS topic
 
-## Application workflow
+![workflow diagram](docs/stepfunctions_graph.png)
 
-1. The Step Function is executed on an hourly schedule via EventBridge.
-2. The first step executes the `list_tables` Lambda functions which retrieves the list of CD2 tables from the API.
-3. The list of tables is passed to a `Map` step which executes the following steps for each item in the list:
-   1. The `sync_table` Lambda function is executed. This returns either `success` or `init_needed` (if the table doesn't exist in the database yet).
-   2. The output of `sync_table` is checked: if the table successfully synced, the iteration is complete. If `init_needed` was returned, the `init_table` function is executed.
-   3. If executed, the output of `init_table` is checked; error handling TBD
-4. Once all iterations are complete, a notification is sent to an SNS topic
+## Deployment
+You can deploy this application to your AWS account with the Serverless Application Model (SAM) CLI. The SAM CLI is an extension of the AWS CLI that adds functionality for building and testing serverless applications. It uses Docker to run your functions in an Amazon Linux environment that matches the Lambda environment. It can also emulate your application's build environment and API.
 
-## Prerequisites
 
-It will be helpful to have a working knowledge of AWS services and the AWS Console. Before you can deploy the application you will need to have the following available:
+### Prerequisites
+A working knowledge of AWS services is beneficial. Before you can deploy the application, the following are required:
+
 * A VPC
-* One or more subnets where the Lambda functions can be deployed
-* One or more subnets where the database cluster can be deployed (can be the same as the Lambda subnets)
+* One or more subnets where the Lambda functions and task can be deployed
+* One or more subnets where the database cluster can be deployed
+* [AWS CLI](https://aws.amazon.com/cli/)
+* [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
+* [Python 3](https://www.python.org/downloads/)
+* [Docker Engine](https://docs.docker.com/engine/install/)
 
-By default the database will not have a public IP address and will not be accessible outside of your VPC. You will need to configure network access to the database as appropriate for your situation.
 
-## Deploying the application
-
-The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
-
-To use the SAM CLI to deploy this application, you need the following tools.
-
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* [Python 3 installed](https://www.python.org/downloads/)
+### 1. Build and deploy the application (Needs Updates)
 
 To build and deploy your application for the first time, run the following in your shell:
 
@@ -47,7 +42,8 @@ sam build
 sam deploy --guided
 ```
 
-The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:
+The first command builds the source of your application.
+The second command packages and deploys your application to AWS, with a series of prompts:
 
 * **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
 * **AWS Region**: The AWS region you want to deploy your app to.
@@ -55,49 +51,67 @@ The first command will build the source of your application. The second command 
 * **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
 * **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
 
-## Initial Database Setup
+### 2. Configure the database
 
-Deploying this application will create:
+Deploying the application creates:
 
-- An Aurora Postgres cluster
-- A database user credential in AWS Secrets Manager.
+- An Aurora Serverless PostgreSQL cluster
+- A database user credential in Secrets Manager
 
-In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. 
+In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. After deploying the SAM app, run the helper script. You must have valid [AWS credentials](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds.html) before running the script.
 
-After deploying the SAM app, run this script. You must have valid AWS credentials before running the script.
+The script requires the stack name returned by the SAM deploy command.
 
 ```
 pip install setup/requirements.txt -r
-./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
+./setup/prepare_aurora_db.py --stack-name <STACK_NAME>
 ```
 
-Occasionally the schema for a CD2 table will change. The DAP library will take care of applying these changes to the database, but they will not succeed if you have created views that depend on the table. To handle this situation, the `sync_table` Lambda function will attempt to drop and recreate any views that depend on the table being synced. The pgsql functions necessary to do this can be found in this repository: https://github.com/rvkulikov/pg-deps-management. You will need to run the `ddl.sql` script in your database to create the necessary functions. (details tbd)
+### 3. Set configuration values
 
-## Configuration
+In order for the application to use the DAP API, you need to provide [a client ID and secret](https://community.canvaslms.com/t5/Admin-Guide/How-do-I-generate-a-Canvas-Data-2-API-key/ta-p/560955).
 
-In order for the application to use the DAP API, you will need to provide a client ID and secret.
+The application uses SSM Parameter Store to securely store and retrieve these values at runtime. To store your client ID and secret, use the following commands or create the parameters using the AWS console.
 
-The application uses AWS SSM Param Store to securely these values and retrieve them at runtime. To store your client ID and secret:
+Set `<ENVIRONMENT>` in these commands to one of:
+
+* `dev`
+* `stg`
+* `prod`
+ 
+
 ```
-aws ssm put-parameter --name '/<environment>/canvas_data_2/dap_client_id' --type SecureString --value '<your client ID>'
-aws ssm put-parameter --name '/<environment>/canvas_data_2/dap_client_secret' --type SecureString --value '<your client secret>'
+aws ssm put-parameter --name '/<ENVIRONMENT>/canvas_data_2/dap_client_id' --type SecureString --value '<DAP_CLIENT_ID>'
+aws ssm put-parameter --name '/<ENVIRONMENT>/canvas_data_2/dap_client_secret' --type SecureString --value '<DAP_CLIENT_SECRET>'
 ```
-where `<environment>` is either `dev` or `prod`. You can also use the AWS SSM console to manage the parameter.
 
-## Running the application
+### 4. Additional configuration
 
-By default the workflow that synchronizes the database will run ever three hours. You can also run the workflow manually via the AWS Console: navigate to the Step Functions console, find your `CD2RefreshStateMachine` in the list, and click the `Start execution` button.
+By default the database does not have a public IP address. You need to [configure network access](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html) to the database per your organization's cybersecurity requirements.
 
-This application uses AWS Lambda to run the `init` and `sync` steps for each CD2 table. If the `init` or `sync` step for any given table takes longer than 15 minutes (the limit on how long Lambda functions can run), the workflow will fail. You will be able to see the error in the AWS Step Functions console. If this happens, you'll need to perform the first initialization for the problematic table manually using the DAP client.
 
-TODO: details on how to initialize a table using the DAP client
+## Operational considerations
 
-## Cleanup
+### Manually trigger a workflow
+By default, the workflow that synchronizes the database will run every three hours. You can also run the workflow manually via the AWS Console:
 
-To delete the application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
+1. Navigate to the Step Functions service
+2. Select `CD2RefreshStateMachine` in the list
+3. Click the `Start execution` button.
+
+### Lambda execution limits
+
+The application uses AWS Lambda to run the `ListTables` and `SyncTables` steps. Lambda executions are limited to 15 minutes. If the steps take longer than the execution limit, the workflow will fail. You will be able to see the error in the AWS Step Functions console.
+
+### Schema changes
+Occasionally the schema for a CD2 table will change. The DAP library will take care of applying these changes to the database, but they will not succeed if you have created views that depend on the table. The `SyncTables` step will attempt to drop dependencies (eg. views) and restore them.
+
+## Clean-up
+
+To delete the application that you created, run the following command. <STACK_NAME> is the stack name returned by the SAM deploy command.
 
 ```bash
-aws cloudformation delete-stack --stack-name canvas-data-2
+aws cloudformation delete-stack --stack-name <STACK_NAME>
 ```
 
-Alternatively, you can delete the stack in the CloudFormation console (within the AWS web console).
+Alternatively, you can delete the stack in the AWS console using the CloudFormation service.

@@ -64,8 +64,10 @@ Parameters:
     Description: Value for a cost tag
     Type: String    
 
-  EcrAccountNumberParameter:
+  BuildAccountParameter:
     Type: String
+    Description: (Optional) An AWS account ID for a cross-acount build job.
+    Default: ''
 
   DatabaseSecurityGroupParameter:
     Type: String
@@ -74,8 +76,11 @@ Parameters:
 
 Conditions:
 
+  # If a database security group parameter is provided
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+
+  # If a cross-account build is specified
 
 Resources:
 
@@ -257,6 +262,30 @@ Resources:
           - !If [CreateDatabaseSecurityGroup, !Ref DatabaseClientSecurityGroup, !Ref "AWS::NoValue"]
         SubnetIds: !Ref LambdaSubnetListParameter
 
+  InitTableECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${ResourcePrefixParameter}-cd2/init-table
+      LifecyclePolicy:
+        LifecyclePolicyText: |-
+          {
+              "rules": [
+                  {
+                      "rulePriority": 1,
+                      "description": "Expire images older than 1 day",
+                      "selection": {
+                          "tagStatus": "untagged",
+                          "countType": "sinceImagePushed",
+                          "countUnit": "days",
+                          "countNumber": 1
+                      },
+                      "action": {
+                          "type": "expire"
+                      }
+                  }
+              ]
+          }
+
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -345,7 +374,7 @@ Resources:
             - ecr:DescribeImages
             - ecr:GetAuthorizationToken
             Resource:
-            - !Sub arn:aws:ecr:${AWS::Region}:${EcrAccountNumberParameter}:repository/*
+            - !GetAtt InitTableECR.Arn
       - PolicyName: state_machine
         PolicyDocument:
           Statement:
@@ -353,8 +382,9 @@ Resources:
             Action:
             - states:SendTaskSuccess
             - states:SendTaskFailure
-            # An explicit reference to the CD2 State Machine creates a CloudFormation circular dependency
-            # This isn't a great work-around.
+            # Should be scoped to the CD2 State Machine
+            # But an explicit reference to the CD2 State Machine creates a CloudFormation circular dependency
+            # Setting this to * isn't a great work-around
             Resource:
             - '*'
       ManagedPolicyArns:
@@ -377,7 +407,7 @@ Resources:
       - Name: !Sub ${AWS::StackName}-InitTable
         Cpu: 1024
         Memory: 8192
-        Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
+        Image: !Sub ${InitTableECR.RepositoryUri}:latest
         Essential: true
         LogConfiguration:
           LogDriver: awslogs
@@ -622,3 +652,8 @@ Outputs:
     Description: The ARN of the Aurora cluster
     Export:
       Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}
+  InitRepoUri:
+    Value: !GetAtt InitTableECR.RepositoryUri
+    Description: The repo URI for the Init Task
+    Export:
+      Name: cd2-init-uri

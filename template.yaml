@@ -72,10 +72,22 @@ Parameters:
     Description: (Optional) A security group ID for the database. If no group is provided, a security group will be created.
     Default: ''
 
+  AthenaConnectorParameter:
+    Type: String
+    Description: (Optional) Create an Athena connector for PostgreSQL. Default is false.
+    Default: false
+    AllowedValues: [true, false]
+
+  AthenaConnectorLambdaNameParameter:
+    Type: String
+    Description: (Optional) Name of Athena Connector Lambda
+    Default: athena_postgresql_connector_cd2
+
 Conditions:
 
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+  CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
 
 Resources:
 
@@ -254,7 +266,7 @@ Resources:
       MemorySize: 2048
       VpcConfig:
         SecurityGroupIds:
-          - !If [CreateDatabaseSecurityGroup, !Ref DatabaseClientSecurityGroup, !Ref "AWS::NoValue"]
+          - !Ref DatabaseClientSecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
 
   FargateCluster:
@@ -610,6 +622,120 @@ Resources:
               Message.$: "$"
               TopicArn: !Ref WorkflowNotificationTopic
             End: true
+
+  AthenaPostgreSQLConnector:
+    Type: AWS::Serverless::Application
+    Condition: CreateAthenaConnector
+    Properties:
+      Location:
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
+        SemanticVersion: 2024.25.1
+      Parameters:
+        LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
+        CompositeHandler: PostGreSqlMuxCompositeHandler
+        DefaultConnectionString: !Sub |
+          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory
+        DefaultScale: '0'
+        DisableSpillEncryption: 'false'
+        LambdaMemory: '3008'
+        LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+        LambdaTimeout: '900'
+        # PermissionsBoundaryARN:
+        SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
+        SecurityGroupIds: !Ref DatabaseClientSecurityGroup
+        SpillBucket: !Ref AthenaSpillBucket
+        SpillPrefix: postgresql
+        SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
+
+  AthenaSpillBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateAthenaConnector
+    Properties:
+      BucketName: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+
+  AthenaPostgreSQLConnectorRole:
+    Type: AWS::IAM::Role
+    Condition: CreateAthenaConnector
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+
+  AthenaPostgreSQLConnectorExecutionPolicy:
+    Type: AWS::IAM::Policy
+    Condition: CreateAthenaConnector    
+    Properties:
+      Roles:
+      - !Ref AthenaPostgreSQLConnectorRole
+      PolicyName: FunctionExecutionPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - secretsmanager:GetSecretValue
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas*
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AthenaPostgreSQLConnector*
+        - Effect: Allow
+          Action:
+            - athena:GetQueryExecution
+            - s3:ListAllMyBuckets
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - ec2:CreateNetworkInterface
+          - ec2:DeleteNetworkInterface
+          - ec2:DescribeNetworkInterfaces
+          - ec2:DetachNetworkInterface          
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:GetBucketLocation
+          - s3:GetObjectVersion
+          - s3:PutObject
+          - s3:PutObjectAcl
+          - s3:GetLifecycleConfiguration
+          - s3:PutLifecycleConfiguration
+          - s3:DeleteObject
+          Resource:
+            - !Sub ${AthenaSpillBucket.Arn}
+            - !Sub ${AthenaSpillBucket.Arn}/*
+        - Effect: Allow
+          Action:
+          - kms:Decrypt
+          Resource: !GetAtt KmsKey.Arn
+
+  AthenaPostgreSQLDataCatalog:
+    Type: AWS::Athena::DataCatalog
+    Condition: CreateAthenaConnector
+    Properties:
+      Name: CanvasData2
+      Description: PostgreSQL connector to Canvas Data 2
+      Type: LAMBDA
+      Parameters:
+        function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
 
 Outputs:
   AdminSecretArn:

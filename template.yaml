@@ -86,13 +86,14 @@ Parameters:
   NotificationEmailParameter:
     Type: String
     Description: (Optional) Email address to send notifications
+    Default: ''
 
 Conditions:
 
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
   CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
-  CreateNotificationSubscription: !Equals [!Ref NotificationEmailParameter, '']
+  CreateNotificationSubscription: !Not [!Equals [!Ref NotificationEmailParameter, '']]
 
 Resources:
 

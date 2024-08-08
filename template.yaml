@@ -83,17 +83,23 @@ Parameters:
     Description: (Optional) Name of Athena Connector Lambda
     Default: athena_postgresql_connector_cd2
 
-  NotificationEmailParameter:
+  NotificationTopicParameter:
     Type: String
-    Description: (Optional) Email address to send notifications
+    Description: (Optional) SNS topic to send notifications
     Default: ''
 
 Conditions:
 
+  # Conditions for BYO Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+  
+  # Conditions for BYO Notification Topic
+  ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
+  CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
+  
+  # Condition for optional Athena connector
   CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
-  CreateNotificationSubscription: !Not [!Equals [!Ref NotificationEmailParameter, '']]
 
 Resources:
 
@@ -406,19 +412,12 @@ Resources:
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
+    Condition: CreateNotificationTopic
     Properties:
       DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}      
-
-  WorkflowNotificationSubscription:
-    Type: AWS::SNS::Subscription
-    Condition: CreateNotificationSubscription
-    Properties:
-      Endpoint: !Ref NotificationEmailParameter
-      Protocol: email
-      TopicArn: !Ref WorkflowNotificationTopic
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -469,7 +468,7 @@ Resources:
                 Action:
                   - sns:Publish
                 Resource:
-                  - !Ref WorkflowNotificationTopic
+                  - !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
         - PolicyName: EventRules
           PolicyDocument:
             Version: "2012-10-17"
@@ -634,7 +633,7 @@ Resources:
             Resource: arn:aws:states:::sns:publish
             Parameters:
               Message.$: "$"
-              TopicArn: !Ref WorkflowNotificationTopic
+              TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true
 
   AthenaPostgreSQLConnector:

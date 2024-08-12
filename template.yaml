@@ -487,6 +487,7 @@ Resources:
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
+      StateMachineName: !Sub ${AWS::StackName}-state-machine
       Role: !GetAtt StatesExecutionRole.Arn
       Events:
         ThreeHourlySchedule:

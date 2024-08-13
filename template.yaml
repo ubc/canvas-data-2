@@ -461,9 +461,7 @@ Resources:
               - ConfigureFalconSensor
               - 
                 - Name: FALCONCTL_OPTS
-                  ValueFrom:
-                    SsmParameter:
-                      Name: !Sub ${FalconSensorCidParameter}
+                  ValueFrom: !Sub ${FalconSensorCidParameter}
               - !Ref "AWS::NoValue"
           LinuxParameters:
             !If

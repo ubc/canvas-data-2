@@ -88,6 +88,22 @@ Parameters:
     Description: (Optional) SNS topic to send notifications
     Default: ''
 
+  FalconSensorParameter:
+    Type: String
+    Description: (Optional) Configure CrowdStrike Falcon container sensor. Default is false.
+    Default: false
+    AllowedValues: [true, false]
+
+  FalconSensorRepoParameter:
+    Type: String
+    Description: (Optional) Repo for CrowdStrike Falcon container sensor image. Leave empty if FalconSensorParameter is false.
+    Default: ''
+
+  FalconSensorCidParameter:
+    Type: String
+    Description: (Optional) SSM Parameter Store key for CrowdStrike CID. Leave empty if FalconSensorParameter is false.
+    Default: ''
+
 Conditions:
 
   # Conditions for BYO Data Security Group
@@ -97,6 +113,10 @@ Conditions:
   # Conditions for BYO Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
+
+  # Condition for CrowdStrike Falcon sensor
+  # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
+  ConfigureFalconSensor: !Equals [true, !Ref FalconSensorParameter]
   
   # Condition for optional Athena connector
   CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
@@ -342,7 +362,9 @@ Resources:
             - ssm:GetParameters
             - ssm:GetParameter
             - ssm:GetParametersByPath
-            Resource: !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/stg/canvas_data_2*
+            Resource: 
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/stg/canvas_data_2*
+            - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${FalconSensorCidParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:
           Statement:
@@ -394,21 +416,89 @@ Resources:
         SizeInGiB: 80
       NetworkMode: awsvpc
       RequiresCompatibilities:
-      - FARGATE
+        - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
       TaskRoleArn: !Sub ${InitTableTaskRole.Arn}
       ContainerDefinitions:
-      - Name: !Sub ${AWS::StackName}-InitTable
-        Cpu: 1024
-        Memory: 8192
-        Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
-        Essential: true
-        LogConfiguration:
-          LogDriver: awslogs
-          Options:
-            awslogs-group: !Ref FargateLogsGroup
-            awslogs-region: !Ref AWS::Region
-            awslogs-stream-prefix: InitTable
+        - Name: !Sub ${AWS::StackName}-InitTable
+          Cpu: 1024
+          Memory: 8192
+          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref FargateLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: InitTable
+          # Additional configuration for Falcon container sensor
+          EntryPoint: 
+            !If
+              - ConfigureFalconSensor
+              - 
+                - /tmp/CrowdStrike/rootfs/lib64/ld-linux-x86-64.so.2
+                - --library-path
+                - /tmp/CrowdStrike/rootfs/lib64
+                - /tmp/CrowdStrike/rootfs/bin/bash
+                - /tmp/CrowdStrike/rootfs/entrypoint-ecs.sh
+                - python
+                - app.py
+              - !Ref "AWS::NoValue"
+          Secrets:
+            !If
+              - ConfigureFalconSensor
+              - 
+                - Name: FALCONCTL_OPTS
+                  ValueFrom:
+                    SsmParameter:
+                      Name: !Ref FalconSensorCidParameter
+              - !Ref "AWS::NoValue"
+          LinuxParameters:
+            !If
+              - ConfigureFalconSensor
+              - Capabilities:
+                  Add:
+                    - SYS_PTRACE
+              - !Ref "AWS::NoValue"
+          MountPoints:
+            !If
+              - ConfigureFalconSensor
+              - 
+                - ContainerPath: /tmp/CrowdStrike
+                  SourceVolume: crowdstrike-falcon-volume
+                  ReadOnly: true
+              - !Ref "AWS::NoValue"
+          DependsOn:
+            !If
+              - ConfigureFalconSensor
+              - 
+                - Condition: COMPLETE
+                  ContainerName: crowdstrike-falcon-init-container
+              - !Ref "AWS::NoValue"
+        # Conditional container definition for the falcon-init-container
+        - !If
+          - ConfigureFalconSensor
+          - 
+            Name: crowdstrike-falcon-init-container
+            Image: !Sub FalconSensorRepoParameter
+            Essential: false
+            EntryPoint:
+              - /bin/bash
+              - -c
+              - chmod u+rwx /tmp/CrowdStrike && mkdir /tmp/CrowdStrike/rootfs && cp -r /bin /etc /lib64 /usr /entrypoint-ecs.sh /tmp/CrowdStrike/rootfs && chmod -R a=rX /tmp/CrowdStrike
+            MountPoints:
+              - ContainerPath: /tmp/CrowdStrike
+                SourceVolume: crowdstrike-falcon-volume
+                ReadOnly: false
+            ReadonlyRootFilesystem: true
+            User: '0:0'
+          - !Ref "AWS::NoValue"
+      Volumes:
+        !If
+          - ConfigureFalconSensor
+          - 
+            - Name: crowdstrike-falcon-volume
+          - !Ref "AWS::NoValue"
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic

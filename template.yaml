@@ -490,7 +490,7 @@ Resources:
           - ConfigureFalconSensor
           - 
             Name: crowdstrike-falcon-init-container
-            Image: !Sub FalconSensorRepoParameter
+            Image: !Sub ${FalconSensorRepoParameter}
             Essential: false
             EntryPoint:
               - /bin/bash
@@ -582,7 +582,7 @@ Resources:
           - ConfigureFalconSensor
           - 
             Name: crowdstrike-falcon-init-container
-            Image: !Sub FalconSensorRepoParameter
+            Image: !Sub ${FalconSensorRepoParameter}
             Essential: false
             EntryPoint:
               - /bin/bash

@@ -1,10 +1,11 @@
 # CodeBuild buildspec to build Lambdas and package project
 #
 # Required environment variables:
-#  ARTIFACTS_BUCKET     = S3 bucket name/path for the artifacts upload
-#  ARTIFACTS_KMS_ID     = KMS key ID used for artifacts bucket
-#  REPOSITORY_URI       = Repo for container image
-#  AWS_ACCOUNT_ID       = Account ID of AWS
+#  ARTIFACTS_BUCKET                 = S3 bucket name/path for the artifacts upload
+#  ARTIFACTS_KMS_ID                 = KMS key ID used for artifacts bucket
+#  REPOSITORY_URI_INIT_TABLE        = Repo for init_table images
+#  REPOSITORY_URI_SYNC_TABLE        = Repo for sync_table images
+#  AWS_ACCOUNT_ID                   = Account ID of AWS
 
 version: 0.2
 
@@ -27,17 +28,23 @@ phases:
   build:
     commands:
       - echo Starting Docker build for init_table...
-      - docker build -t $REPOSITORY_URI:latest $CODEBUILD_SRC_DIR/init_table/
-      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG      
+      - docker build -t $REPOSITORY_URI_INIT_TABLE:latest $CODEBUILD_SRC_DIR/init_table/
+      - docker tag $REPOSITORY_URI_INIT_TABLE:latest $REPOSITORY_URI_INIT_TABLE:$IMAGE_TAG      
+      - echo Starting Docker build for sync_table...
+      - docker build -t $REPOSITORY_URI_SYNC_TABLE:latest $CODEBUILD_SRC_DIR/sync_table/
+      - docker tag $REPOSITORY_URI_SYNC_TABLE:latest $REPOSITORY_URI_SYNC_TABLE:$IMAGE_TAG      
       - echo Starting SAM build...
       - sam build --template-file template.yaml
       - sam package --s3-bucket $ARTIFACTS_BUCKET --kms-key-id $ARTIFACTS_KMS_ID --output-template-file output.yml
 
   post_build:
     commands:
-      - echo Pushing Docker image to $REPOSITORY_URI:$IMAGE_TAG...
-      - docker push $REPOSITORY_URI:latest
-      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Pushing Docker image to $REPOSITORY_URI_INIT_TABLE:$IMAGE_TAG...
+      - docker push $REPOSITORY_URI_INIT_TABLE:latest
+      - docker push $REPOSITORY_URI_INIT_TABLE:$IMAGE_TAG
+      - echo Pushing Docker image to $REPOSITORY_URI_SYNC_TABLE:$IMAGE_TAG...
+      - docker push $REPOSITORY_URI_SYNC_TABLE:latest
+      - docker push $REPOSITORY_URI_SYNC_TABLE:$IMAGE_TAG      
 
 artifacts:
   files:

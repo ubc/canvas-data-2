@@ -99,9 +99,9 @@ Parameters:
     Description: (Optional) Repo for CrowdStrike Falcon container sensor image. Leave empty if FalconSensorParameter is false.
     Default: ''
 
-  FalconSensorCidParameter:
+  FalconSensorOptionsParameter:
     Type: String
-    Description: (Optional) SSM Parameter Store key for CrowdStrike CID. Leave empty if FalconSensorParameter is false.
+    Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
 Conditions:
@@ -366,7 +366,7 @@ Resources:
             - ssm:GetParametersByPath
             Resource: 
             - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/stg/canvas_data_2*
-            - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${FalconSensorCidParameter}*", !Ref "AWS::NoValue"]
+            - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:
           Statement:
@@ -461,7 +461,7 @@ Resources:
               - ConfigureFalconSensor
               - 
                 - Name: FALCONCTL_OPTS
-                  ValueFrom: !Sub ${FalconSensorCidParameter}
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}
               - !Ref "AWS::NoValue"
           LinuxParameters:
             !If
@@ -553,7 +553,7 @@ Resources:
               - ConfigureFalconSensor
               - 
                 - Name: FALCONCTL_OPTS
-                  ValueFrom: !Sub ${FalconSensorCidParameter}
+                  ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}
               - !Ref "AWS::NoValue"
           LinuxParameters:
             !If

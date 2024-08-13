@@ -172,11 +172,11 @@ if __name__ == "__main__":
         "Payload": result
     }
 
-    if token and result['state'] == 'complete':
+    if token and result['state'] == 'failed':
+        stepfunctions.send_task_failure(
+            taskToken=token,
+            error=json.dumps(payload))
+    elif token:
         stepfunctions.send_task_success(
             taskToken=token,
             output=json.dumps(payload))
-    elif token:
-            stepfunctions.send_task_failure(
-            taskToken=token,
-            error=json.dumps(payload))

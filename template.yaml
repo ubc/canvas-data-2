@@ -242,45 +242,6 @@ Resources:
           - !Ref EmptySecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
 
-  SyncTableFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: sync_table/
-      Handler: app.lambda_handler
-      Runtime: python3.11
-      Architectures:
-        - x86_64
-      Policies:
-        - SSMParameterReadPolicy:
-            ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
-        - AWSSecretsManagerGetSecretValuePolicy:
-            SecretArn: !Ref DatabaseUserSecretCanvas
-        - AWSSecretsManagerGetSecretValuePolicy:
-            SecretArn: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-        - KMSDecryptPolicy:
-            KeyId: !Ref KmsKey
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action:
-                - rds-data:*
-              Resource: !GetAtt AuroraDatabaseCluster.DBClusterArn
-      Environment:
-        Variables:
-          ENV: !Ref EnvironmentParameter
-          POWERTOOLS_METRICS_NAMESPACE: canvas-data-2
-          POWERTOOLS_SERVICE_NAME: sync_table
-          LOG_LEVEL: !Ref LogLevel
-          DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
-          ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-          DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
-      Timeout: 900
-      MemorySize: 2048
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref DatabaseClientSecurityGroup
-        SubnetIds: !Ref LambdaSubnetListParameter
-
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -312,11 +273,50 @@ Resources:
             Action:
             - iam:PassRole
             Resource:
-            - !Sub ${InitTableTaskRole.Arn}
+            - !Sub ${TaskRole.Arn}
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  InitTableTaskRole:
+  # SyncTableFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     CodeUri: sync_table/
+  #     Handler: app.lambda_handler
+  #     Runtime: python3.11
+  #     Architectures:
+  #       - x86_64
+  #     Policies:
+  #       - SSMParameterReadPolicy:
+  #           ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
+  #       - AWSSecretsManagerGetSecretValuePolicy:
+  #           SecretArn: !Ref DatabaseUserSecretCanvas
+  #       - AWSSecretsManagerGetSecretValuePolicy:
+  #           SecretArn: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
+  #       - KMSDecryptPolicy:
+  #           KeyId: !Ref KmsKey
+  #       - Version: '2012-10-17'
+  #         Statement:
+  #           - Effect: Allow
+  #             Action:
+  #               - rds-data:*
+  #             Resource: !GetAtt AuroraDatabaseCluster.DBClusterArn
+  #     Environment:
+  #       Variables:
+  #         ENV: !Ref EnvironmentParameter
+  #         POWERTOOLS_METRICS_NAMESPACE: canvas-data-2
+  #         POWERTOOLS_SERVICE_NAME: sync_table
+  #         LOG_LEVEL: !Ref LogLevel
+  #         DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
+  #         ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
+  #         DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
+  #     Timeout: 900
+  #     MemorySize: 2048
+  #     VpcConfig:
+  #       SecurityGroupIds:
+  #         - !Ref DatabaseClientSecurityGroup
+  #       SubnetIds: !Ref LambdaSubnetListParameter
+
+  TaskRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -396,7 +396,7 @@ Resources:
       RequiresCompatibilities:
       - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
-      TaskRoleArn: !Sub ${InitTableTaskRole.Arn}
+      TaskRoleArn: !Sub ${TaskRole.Arn}
       ContainerDefinitions:
       - Name: !Sub ${AWS::StackName}-InitTable
         Cpu: 1024
@@ -409,6 +409,32 @@ Resources:
             awslogs-group: !Ref FargateLogsGroup
             awslogs-region: !Ref AWS::Region
             awslogs-stream-prefix: InitTable
+
+  SyncTableTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-SyncTable
+      Cpu: 1024
+      Memory: 8192
+      EphemeralStorage:
+        SizeInGiB: 80
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+      - FARGATE
+      ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
+      TaskRoleArn: !Sub ${TaskRole.Arn}
+      ContainerDefinitions:
+      - Name: !Sub ${AWS::StackName}-SyncTable
+        Cpu: 1024
+        Memory: 8192
+        Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:latest
+        Essential: true
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref FargateLogsGroup
+            awslogs-region: !Ref AWS::Region
+            awslogs-stream-prefix: SyncTable
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
@@ -441,7 +467,6 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource:
                   - !Sub "${ListTablesFunction.Arn}*"
-                  - !Sub "${SyncTableFunction.Arn}*"
         - PolicyName: ECSExecutionPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -451,6 +476,7 @@ Resources:
                   - "ecs:RunTask"
                 Resource:
                   - !Sub "${InitTableTaskDefinition}*"
+                  - !Sub "${SyncTableTaskDefinition}*"
         - PolicyName: PassRole
           PolicyDocument:
             Statement:
@@ -459,7 +485,7 @@ Resources:
               - iam:PassRole
               Resource:
               - !Sub ${FargateExecutionRole.Arn}
-              - !Sub ${InitTableTaskRole.Arn}
+              - !Sub ${TaskRole.Arn}
         - PolicyName: NotificationPolicy
           PolicyDocument:
             Version: "2012-10-17"
@@ -487,7 +513,7 @@ Resources:
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      StateMachineName: !Sub ${AWS::StackName}-state-machine
+      #StateMachineName: !Sub ${AWS::StackName}-state-machine
       Role: !GetAtt StatesExecutionRole.Arn
       Events:
         ThreeHourlySchedule:
@@ -529,18 +555,64 @@ Resources:
                 Mode: INLINE
               StartAt: SyncTable
               States:
+                # SyncTable:
+                #   Type: Task
+                #   Resource: arn:aws:states:::lambda:invoke
+                #   Parameters:
+                #     Payload.$: "$"
+                #     FunctionName: !Ref SyncTableFunction
+                #   Retry:
+                #     - ErrorEquals:
+                #       - Lambda.ServiceException
+                #       - Lambda.AWSLambdaException
+                #       - Lambda.SdkClientException
+                #       - Lambda.TooManyRequestsException
+                #       IntervalSeconds: 2
+                #       MaxAttempts: 6
+                #       BackoffRate: 6
+                #   Catch:
+                #     - ErrorEquals:
+                #       - States.TaskFailed
+                #       ResultPath: "$.error"
+                #       Next: TableFailed
+                #   Next: CheckSyncState
                 SyncTable:
                   Type: Task
-                  Resource: arn:aws:states:::lambda:invoke
+                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
                   Parameters:
-                    Payload.$: "$"
-                    FunctionName: !Ref SyncTableFunction
+                    LaunchType: FARGATE
+                    Cluster: !Ref FargateCluster
+                    TaskDefinition: !Ref SyncTableTaskDefinition
+                    NetworkConfiguration:
+                      AwsvpcConfiguration:
+                        AssignPublicIp: DISABLED
+                        SecurityGroups:
+                        - !Ref DatabaseClientSecurityGroup
+                        Subnets:
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB                        
+                    Overrides:
+                      ContainerOverrides:
+                      - Name: !Sub ${AWS::StackName}-SyncTable
+                        Environment:
+                        - Name: TASK_TOKEN
+                          Value.$: $$.Task.Token
+                        - Name: TABLE_NAME
+                          Value.$: States.JsonToString($.Payload)
+                        - Name: ENV
+                          Value: !Ref EnvironmentParameter
+                        - Name: LOG_LEVEL
+                          Value: INFO
+                        - Name: DB_USER_SECRET_NAME
+                          Value: !Ref DatabaseUserSecretCanvas
+                  TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
-                      - Lambda.ServiceException
-                      - Lambda.AWSLambdaException
-                      - Lambda.SdkClientException
-                      - Lambda.TooManyRequestsException
+                      - ECS.ServiceException
+                      - ECS.ThrottlingException
+                      - ECS.ClientException
+                      - ECS.ClusterNotFoundException
+                      - ECS.TaskSetNotFoundException
                       IntervalSeconds: 2
                       MaxAttempts: 6
                       BackoffRate: 6
@@ -549,7 +621,7 @@ Resources:
                       - States.TaskFailed
                       ResultPath: "$.error"
                       Next: TableFailed
-                  Next: CheckSyncState
+                  Next: CheckSyncState                
                 CheckSyncState:
                   Type: Choice
                   Choices:

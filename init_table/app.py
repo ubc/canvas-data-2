@@ -6,7 +6,6 @@ from urllib.parse import quote_plus
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
-#from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.config import Config
 from dap.dap_types import Credentials
 from dap.integration.database import DatabaseConnection

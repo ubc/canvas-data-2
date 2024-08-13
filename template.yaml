@@ -349,7 +349,9 @@ Resources:
           - Effect: Allow
             Action:
             - secretsmanager:GetSecretValue
-            Resource: !Ref DatabaseUserSecretCanvas
+            Resource:
+            - !Ref DatabaseUserSecretCanvas
+            - !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
       - PolicyName: kms
         PolicyDocument:
           Statement:
@@ -370,6 +372,14 @@ Resources:
             - ecr:GetAuthorizationToken
             Resource:
             - !Sub arn:aws:ecr:${AWS::Region}:${EcrAccountNumberParameter}:repository/*
+      - PolicyName: rds_data
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - rds-data:*
+            Resource:
+            - !GetAtt AuroraDatabaseCluster.DBClusterArn
       - PolicyName: state_machine
         PolicyDocument:
           Statement:
@@ -602,9 +612,17 @@ Resources:
                         - Name: ENV
                           Value: !Ref EnvironmentParameter
                         - Name: LOG_LEVEL
-                          Value: INFO
+                          Value: !Ref LogLevel
+                        - Name: POWERTOOLS_METRICS_NAMESPACE
+                          Value: canvas-data-2
+                        - Name: POWERTOOLS_SERVICE_NAME
+                          Value: sync_table
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
+                        - Name: ADMIN_SECRET_ARN
+                          Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
+                        - Name: DB_CLUSTER_ARN
+                          Value: !GetAtt AuroraDatabaseCluster.DBClusterArn  
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -655,7 +673,11 @@ Resources:
                         - Name: ENV
                           Value: !Ref EnvironmentParameter
                         - Name: LOG_LEVEL
-                          Value: INFO
+                          Value: !Ref LogLevel
+                        - Name: POWERTOOLS_METRICS_NAMESPACE
+                          Value: canvas-data-2
+                        - Name: POWERTOOLS_SERVICE_NAME
+                          Value: init_table                          
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
                   TimeoutSeconds: 43200

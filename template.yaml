@@ -106,19 +106,21 @@ Parameters:
 
 Conditions:
 
-  # Conditions for BYO Data Security Group
+  # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
   
-  # Conditions for BYO Notification Topic
+  # Conditions for Bring Your Own Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
 
   # Condition for CrowdStrike Falcon sensor
+  # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
   ConfigureFalconSensor: !Equals [true, !Ref FalconSensorParameter]
   
   # Condition for optional Athena connector
+  # Creates an Athena data source allowing CD2 data to be joined with other data sources
   CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
 
 Resources:
@@ -451,7 +453,7 @@ Resources:
                 - Name: FALCONCTL_OPTS
                   ValueFrom:
                     SsmParameter:
-                      Name: !Ref FalconSensorCidParameter
+                      Name: !Sub ${FalconSensorCidParameter}
               - !Ref "AWS::NoValue"
           LinuxParameters:
             !If
@@ -577,7 +579,7 @@ Resources:
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      StateMachineName: !Sub ${AWS::StackName}-state-machine
+      #StateMachineName: !Sub ${AWS::StackName}-state-machine
       Role: !GetAtt StatesExecutionRole.Arn
       Events:
         ThreeHourlySchedule:

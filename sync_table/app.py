@@ -1,11 +1,11 @@
 import asyncio
 import os
+import boto3
+import json
 from urllib.parse import quote_plus
 
-import boto3
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
-from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.config import Config
 from dap.api import DAPClient
 from dap.dap_types import Credentials
@@ -16,27 +16,23 @@ from pysqlsync.base import QueryException
 
 region = os.environ.get("AWS_REGION")
 
+stepfunctions = boto3.client('stepfunctions')
+rds_data_client = boto3.client("rds-data")
+
 config = Config(region_name=region)
 ssm_provider = parameters.SSMProvider(config=config)
 
 logger = Logger()
 
 env = os.environ.get("ENV", "dev")
-db_user_secret_name = os.environ.get("DB_USER_SECRET_NAME")
-
 db_cluster_arn = os.environ.get("DB_CLUSTER_ARN")
+db_user_secret_name = os.environ.get("DB_USER_SECRET_NAME")
 admin_secret_arn = os.environ.get("ADMIN_SECRET_ARN")
-
 param_path = f"/{env}/canvas_data_2"
-
 api_base_url = os.environ.get("API_BASE_URL", "https://api-gateway.instructure.com")
-
 namespace = "canvas"
 
-rds_data_client = boto3.client("rds-data")
-
-
-def lambda_handler(event, context: LambdaContext):
+def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
 
     dap_client_id = params["dap_client_id"]
@@ -153,3 +149,34 @@ def restore_dependencies(db_name, table_name):
         sql=restore_sql,
     )
     logger.info(f"restored dependencies for {table_name}: {response}")
+
+if __name__ == "__main__":
+    event = json.loads(os.environ.get('TABLE_NAME'))
+    token = os.environ.get('TASK_TOKEN')
+
+    payload = None
+    result = None
+
+    try:
+        result = start(event)
+
+    except Exception as err:
+        if token:
+            stepfunctions.send_task_failure(
+                taskToken=token,
+                error=f'{err}'
+            )
+        raise err
+
+    payload = {
+        "Payload": result
+    }
+
+    if token and result['state'] == 'failed':
+        stepfunctions.send_task_failure(
+            taskToken=token,
+            error=json.dumps(payload))
+    elif token:
+        stepfunctions.send_task_success(
+            taskToken=token,
+            output=json.dumps(payload))

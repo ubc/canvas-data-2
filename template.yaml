@@ -608,7 +608,7 @@ Resources:
                         - Name: TASK_TOKEN
                           Value.$: $$.Task.Token
                         - Name: TABLE_NAME
-                          Value.$: States.JsonToString($.Payload)
+                          Value.$: States.JsonToString($)
                         - Name: ENV
                           Value: !Ref EnvironmentParameter
                         - Name: LOG_LEVEL

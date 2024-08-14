@@ -104,11 +104,6 @@ Parameters:
     Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
-  FalconSensorTagsParameter:
-    Type: String
-    Description: (Optional) Tags for the Falcon sensor. Leave empty if FalconSensorParameter is false.
-    Default: ''
-
 Conditions:
 
   # Conditions for Bring Your Own Data Security Group

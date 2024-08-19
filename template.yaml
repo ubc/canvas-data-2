@@ -385,7 +385,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource: 
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/stg/canvas_data_2*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
             - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:

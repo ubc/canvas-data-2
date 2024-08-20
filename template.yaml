@@ -807,6 +807,7 @@ Resources:
                       - ECS.ClientException
                       - ECS.ClusterNotFoundException
                       - ECS.TaskSetNotFoundException
+                      - ECS.AmazonECSException
                       IntervalSeconds: 2
                       MaxAttempts: 6
                       BackoffRate: 6
@@ -864,6 +865,7 @@ Resources:
                       - ECS.ClientException
                       - ECS.ClusterNotFoundException
                       - ECS.TaskSetNotFoundException
+                      - ECS.AmazonECSException
                       IntervalSeconds: 2
                       MaxAttempts: 6
                       BackoffRate: 6

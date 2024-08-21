@@ -67,6 +67,10 @@ Parameters:
   EcrAccountNumberParameter:
     Type: String
 
+  YourRoleArnParameter:
+    Type: String
+    Description: The ARN for the role creating/updating this stack.
+
   DatabaseSecurityGroupParameter:
     Type: String
     Description: (Optional) A security group ID for the database. If no group is provided, a security group will be created.
@@ -86,6 +90,11 @@ Parameters:
   NotificationTopicParameter:
     Type: String
     Description: (Optional) SNS topic to send notifications
+    Default: ''
+
+  DataKeyIdParameter:
+    Type: String
+    Description: (Optional) KMS key ID to encrypt data
     Default: ''
 
   FalconSensorParameter:
@@ -114,6 +123,10 @@ Conditions:
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
 
+  # Conditions for Bring Your Own KMS Data Key
+  # ExistingDataKey: !Not [!Equals [!Ref DataKeyIdParameter, '']]
+  # CreateDataKey: !Equals [!Ref DataKeyIdParameter, '']  
+
   # Condition for CrowdStrike Falcon sensor
   # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
@@ -125,14 +138,97 @@ Conditions:
 
 Resources:
 
-  KmsKey:
+  SecretsKmsKey:
     Type: AWS::KMS::Key
     Properties:
-      Description: KMS key for encrypting secrets
+      Description: Key for encrypting Canvas Data 2 secrets
       Enabled: true
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
+
+  SecretsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${ResourcePrefixParameter}-canvas-data-2-secrets
+      TargetKeyId: !Ref SecretsKmsKey
+
+  DataKmsKey:
+    Type: AWS::KMS::Key
+    #Condition: CreateDataKey
+    Properties:
+      Description: Key for encrypting Canvas Data 2 data
+      Enabled: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: Allow root account admistration of key
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
+        - Sid: Allow generate data key access for Fargate tasks.
+          Effect: Allow
+          Principal:
+            Service: fargate.amazonaws.com
+          Action:
+            - kms:GenerateDataKeyWithoutPlaintext
+          Condition:
+            StringEquals:
+              "kms:EncryptionContext:aws:ecs:clusterAccount":
+                - !Sub ${AWS::AccountId}
+              "kms:EncryptionContext:aws:ecs:clusterName":
+                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+          Resource: '*'
+        - Sid: Allow grant creation permission for Fargate tasks.
+          Effect: Allow
+          Principal:
+            Service: fargate.amazonaws.com
+          Action:
+            - kms:CreateGrant
+          Condition:
+            StringEquals:
+              "kms:EncryptionContext:aws:ecs:clusterAccount":
+                - !Sub ${AWS::AccountId}
+              "kms:EncryptionContext:aws:ecs:clusterName":
+                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+            ForAllValues:StringEquals:
+              "kms:GrantOperations":
+                - "Decrypt"
+          Resource: '*'
+        - Sid: Allow describe key permission for cluster operator - CreateCluster and UpdateCluster.
+          Effect: Allow
+          Principal:
+            AWS: !Ref YourRoleArnParameter
+          Action:
+            - kms:DescribeKey
+          Resource: '*'
+        - Sid: Allow RDS to use the key to encrypt the cluster
+          Effect: Allow
+          Principal:
+            Service: rds.amazonaws.com
+          Action:
+            - kms:Encrypt
+            - kms:Decrypt
+            - kms:ReEncrypt*
+            - kms:GenerateDataKey*
+            - kms:DescribeKey
+          Resource: '*'
+          # Removing condition to avoid circular dependency
+          # Condition:
+          #   StringEquals:
+          #     "rds:db-cluster-id": !Sub ${AuroraDatabaseCluster}
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  DataKeyAlias:
+    Type: AWS::KMS::Alias
+    #Condition: CreateDataKey
+    Properties:
+      AliasName: !Sub alias/${ResourcePrefixParameter}-canvas-data-2
+      TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
@@ -145,7 +241,7 @@ Resources:
         GenerateStringKey: password
         PasswordLength: 24
         ExcludePunctuation: true
-      KmsKeyId: !Ref KmsKey
+      KmsKeyId: !Ref SecretsKmsKey
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}      
@@ -192,7 +288,7 @@ Resources:
       MasterUsername: !Sub ${DatabaseAdminUserParameter}
       ManageMasterUserPassword: true
       MasterUserSecret:
-        KmsKeyId: !Ref KmsKey
+        KmsKeyId: !Ref SecretsKmsKey
       DBSubnetGroupName: !Ref DatabaseSubnetGroup
       VpcSecurityGroupIds:
           - !If [ExistingDatabaseSecurityGroup, !Ref DatabaseSecurityGroupParameter, !Ref DatabaseSecurityGroup]
@@ -205,6 +301,8 @@ Resources:
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
       StorageEncrypted: true
+      #KmsKeyId: !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
+      KmsKeyId: !GetAtt DataKmsKey.Arn
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       Tags: 
         - Key: !Sub ${TagNameParameter}
@@ -268,6 +366,10 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+      Configuration:
+        ManagedStorageConfiguration:
+          #FargateEphemeralStorageKmsKeyId: !If [ExistingDataKey, !Ref DataKeyIdParameter, !GetAtt DataKmsKey.Arn]
+          FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
 
   FargateLogsGroup:
     Type: AWS::Logs::LogGroup
@@ -300,6 +402,16 @@ Resources:
                   - iam:PassRole
                 Resource:
                   - !Sub ${TaskRole.Arn}
+        - PolicyName: kms_for_data
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:*
+                Resource:
+                  #- !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
+                  - !GetAtt DataKmsKey.Arn
         - !If
           - ConfigureFalconSensor
           - PolicyName: falcon_parameter_store
@@ -402,7 +514,7 @@ Resources:
           - Effect: Allow
             Action:
             - kms:Decrypt
-            Resource: !GetAtt KmsKey.Arn
+            Resource: !GetAtt SecretsKmsKey.Arn
       - PolicyName: ecr
         PolicyDocument:
           Statement:
@@ -435,6 +547,16 @@ Resources:
             # This isn't a great work-around.
             Resource:
             - '*'
+      - PolicyName: kms_for_data
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - kms:*
+              Resource:
+                #- !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
+                - !GetAtt DataKmsKey.Arn
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
 
@@ -1011,7 +1133,7 @@ Resources:
         - Effect: Allow
           Action:
           - kms:Decrypt
-          Resource: !GetAtt KmsKey.Arn
+          Resource: !GetAtt SecretsKmsKey.Arn
 
   AthenaPostgreSQLDataCatalog:
     Type: AWS::Athena::DataCatalog

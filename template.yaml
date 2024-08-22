@@ -45,11 +45,11 @@ Parameters:
     Description: The list of one or more subnets to deploy the Lambda functions into.
 
   DatabaseAdminUserParameter:
-    Description: Name of the RDS admin user
+    Description: Username for the admin database user
     Type: String
 
   DatabaseCd2UserParameter:
-    Description: Name of the RDS admin user
+    Description: Username for the canvas database user
     Type: String
 
   ResourcePrefixParameter:
@@ -150,7 +150,7 @@ Resources:
   SecretsKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-canvas-data-2-secrets
+      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
@@ -227,7 +227,7 @@ Resources:
     Type: AWS::KMS::Alias
     #Condition: CreateDataKey
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-canvas-data-2
+      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-data
       TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
@@ -235,7 +235,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
-      Description: Aurora database user secret for canvas user
+      Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
         GenerateStringKey: password
@@ -311,7 +311,7 @@ Resources:
   DatabaseClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
     Properties: 
-      Description: PostgreSQL parameter group for canvas-data-2
+      Description: PostgreSQL parameter group for Canvas Data 2
       Family: aurora-postgresql15
       Parameters:
         rds.force_ssl: 1
@@ -374,7 +374,8 @@ Resources:
   FargateLogsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub ${AWS::StackName}/fargate
+      LogGroupName: !Sub ${AWS::StackName}-fargate
+      RetentionInDays: 
 
   FargateExecutionRole:
     Type: AWS::IAM::Role
@@ -1148,11 +1149,11 @@ Resources:
 Outputs:
   AdminSecretArn:
     Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-    Description: The ARN of the Aurora admin user secret
+    Description: Canvas Data 2 database admin user secret
     Export:
       Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
   AuroraClusterArn:
     Value: !GetAtt AuroraDatabaseCluster.DBClusterArn
-    Description: The ARN of the Aurora cluster
+    Description: The ARN of the Canvas Data 2 Aurora cluster
     Export:
       Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}

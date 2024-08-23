@@ -410,7 +410,7 @@ Resources:
         SubnetIds: !Ref LambdaSubnetListParameter
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
-      Role: !Ref ListTablesRole
+      Role: !GetAtt ListTablesRole.Arn
 
   ListTablesLogGroup:
     Type: AWS::Logs::LogGroup

@@ -14,6 +14,7 @@ Parameters:
 
   EnvironmentParameter:
     Type: String
+    Description: Name of the environment. Allowed values are dev, stg, prod.
     AllowedValues:
       - "dev"
       - "stg"
@@ -22,86 +23,121 @@ Parameters:
 
   LogLevel:
     Type: String
-    Default: INFO
+    Description: Logging level. Allowed values are DEBUG, INFO, WARN, ERROR.
     AllowedValues:
       - 'DEBUG'
       - 'INFO'
       - 'WARN'
       - 'ERROR'
+    Default: INFO      
 
   SkipTablesParameter:
     Type: String
+    Description: List of Canvas Data 2 tables not to initialize/sync. Leave empty to load all tables.
 
   VpcIdParameter:
     Type: AWS::EC2::VPC::Id
     Description: The ID of the VPC to deploy the database and Lambda functions into.
 
-  DatabaseSubnetListParameter:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: The list of one or more subnets to deploy the database into.
-
   LambdaSubnetListParameter:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the Lambda functions into.
 
+  DatabaseSubnetListParameter:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: The list of one or more subnets to deploy the database into.
+
   DatabaseAdminUserParameter:
-    Description: Username for the admin database user
     Type: String
+    Description: Username for the admin database user.
 
   DatabaseCd2UserParameter:
-    Description: Username for the canvas database user
     Type: String
+    Description: Username for the canvas database user.
+
+  DatabaseMinCapacityParameter:
+    Type: Number
+    Description: Serverless Aurora minimum capacity.
+    Default: 0.5
+
+  DatabaseMaxCapacityParameter:
+    Type: Number
+    Description: Serverless Aurora maximum capacity. 
+    Default: 4
+
+  # Task sizing:
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#task_size
+  TaskCpuParameter:
+    Type: Number
+    Description: CPUs allocted to Fargate tasks.
+    Default: 1024
+
+  TaskMemoryParameter:
+    Type: Number
+    Description: Memory allocated to Fargate tasks (MB).
+    Default: 8192
+
+  TaskStorageParameter:
+    Type: Number
+    Description: Ephemeral storage allocated to Fargate tasks (GB).
+    Default: 80    
 
   ResourcePrefixParameter:
-    Description: Prefix for resource names
     Type: String
+    Description: Prefix for resource names.
 
   TagNameParameter:
-    Description: Name for a cost tag
     Type: String
+    Description: Cost tag name.
 
   TagValueParameter:
-    Description: Value for a cost tag
     Type: String    
+    Description: Cost tag value.
 
   EcrAccountNumberParameter:
     Type: String
+    Description: AWS Account ID for an ECR repository.
+
+  LogRetentionParameter:
+    Type: Number
+    Description: Number of days to retain logs.
+    Default: 90 
 
   YourRoleArnParameter:
     Type: String
-    Description: The ARN for the role creating/updating this stack.
+    Description: The ARN for the IAM role creating/updating this stack.
 
   DatabaseSecurityGroupParameter:
     Type: String
-    Description: (Optional) A security group ID for the database. If no group is provided, a security group will be created.
+    Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
     Default: ''
 
   AthenaConnectorParameter:
     Type: String
     Description: (Optional) Create an Athena connector for PostgreSQL. Default is false.
-    Default: false
     AllowedValues: [true, false]
+    Default: false
 
   AthenaConnectorLambdaNameParameter:
     Type: String
-    Description: (Optional) Name of Athena Connector Lambda
+    Description: (Optional) Name of Athena Connector Lambda. Unused if AthenaConnectorParameter is set to false.
     Default: athena_postgresql_connector_cd2
 
   NotificationTopicParameter:
     Type: String
-    Description: (Optional) SNS topic to send notifications
+    Description: (Optional) SNS topic to send notifications. Leave empty to create a new topic.
     Default: ''
 
   DataKeyIdParameter:
     Type: String
-    Description: (Optional) KMS key ID to encrypt data
+    Description: (Optional) KMS key ID to encrypt data. Leave empty to create a new key.
     Default: ''
 
   FalconSensorParameter:
     Type: String
     Description: (Optional) Configure CrowdStrike Falcon container sensor. Default is false.
-    Default: false
     AllowedValues: [true, false]
+    Default: false
 
   FalconSensorRepoParameter:
     Type: String
@@ -251,18 +287,27 @@ Resources:
     Properties:
       DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
 
   EmptySecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   DatabaseSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -295,8 +340,8 @@ Resources:
       Port: 5432
       DatabaseName: cd2
       ServerlessV2ScalingConfiguration:
-        MinCapacity: 0.5
-        MaxCapacity: 16
+        MinCapacity: !Ref DatabaseMinCapacityParameter
+        MaxCapacity: !Ref DatabaseMaxCapacityParameter
       DeletionProtection: false
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
@@ -304,6 +349,8 @@ Resources:
       #KmsKeyId: !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
       KmsKeyId: !GetAtt DataKmsKey.Arn
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
+      EnableCloudwatchLogsExports:
+        - postgresql
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -361,6 +408,59 @@ Resources:
         SecurityGroupIds:
           - !Ref EmptySecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
+      LoggingConfig:
+        LogGroup: !Ref ListTablesLogGroup
+      Role: !Ref ListTablesRole
+
+  ListTablesLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/lambda/ListTables
+      RetentionInDays: !Ref LogRetentionParameter        
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  ListTablesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: parameter-store
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - ssm:DescribeParameters
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ssm:GetParameters
+            - ssm:GetParameter
+            - ssm:GetParametersByPath
+            Resource: 
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+      - PolicyName: logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+              Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/${AWS::StackName}/lambda/ListTables*
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
   FargateCluster:
     Type: AWS::ECS::Cluster
@@ -370,12 +470,9 @@ Resources:
         ManagedStorageConfiguration:
           #FargateEphemeralStorageKmsKeyId: !If [ExistingDataKey, !Ref DataKeyIdParameter, !GetAtt DataKmsKey.Arn]
           FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
-
-  FargateLogsGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub ${AWS::StackName}-fargate
-      RetentionInDays: 
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   FargateExecutionRole:
     Type: AWS::IAM::Role
@@ -431,45 +528,6 @@ Resources:
                   Resource:
                     - !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*"
           - !Ref "AWS::NoValue"
-
-  # SyncTableFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     CodeUri: sync_table/
-  #     Handler: app.lambda_handler
-  #     Runtime: python3.11
-  #     Architectures:
-  #       - x86_64
-  #     Policies:
-  #       - SSMParameterReadPolicy:
-  #           ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
-  #       - AWSSecretsManagerGetSecretValuePolicy:
-  #           SecretArn: !Ref DatabaseUserSecretCanvas
-  #       - AWSSecretsManagerGetSecretValuePolicy:
-  #           SecretArn: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-  #       - KMSDecryptPolicy:
-  #           KeyId: !Ref KmsKey
-  #       - Version: '2012-10-17'
-  #         Statement:
-  #           - Effect: Allow
-  #             Action:
-  #               - rds-data:*
-  #             Resource: !GetAtt AuroraDatabaseCluster.DBClusterArn
-  #     Environment:
-  #       Variables:
-  #         ENV: !Ref EnvironmentParameter
-  #         POWERTOOLS_METRICS_NAMESPACE: canvas-data-2
-  #         POWERTOOLS_SERVICE_NAME: sync_table
-  #         LOG_LEVEL: !Ref LogLevel
-  #         DB_USER_SECRET_NAME: !Ref DatabaseUserSecretCanvas
-  #         ADMIN_SECRET_ARN: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-  #         DB_CLUSTER_ARN: !GetAtt AuroraDatabaseCluster.DBClusterArn
-  #     Timeout: 900
-  #     MemorySize: 2048
-  #     VpcConfig:
-  #       SecurityGroupIds:
-  #         - !Ref DatabaseClientSecurityGroup
-  #       SubnetIds: !Ref LambdaSubnetListParameter
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -558,6 +616,19 @@ Resources:
               Resource:
                 #- !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
                 - !GetAtt DataKmsKey.Arn
+      - PolicyName: logging
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+              Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+            - Effect: Allow
+              Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/${AWS::StackName}/fargate/*
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
 
@@ -565,25 +636,28 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub ${AWS::StackName}-InitTable
-      Cpu: 1024
-      Memory: 8192
+      Cpu: !Ref TaskCpuParameter
+      Memory: !Ref TaskMemoryParameter
       EphemeralStorage:
-        SizeInGiB: 80
+        SizeInGiB: !Ref TaskStorageParameter
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
       TaskRoleArn: !Sub ${TaskRole.Arn}
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
       ContainerDefinitions:
         - Name: !Sub ${AWS::StackName}-InitTable
-          Cpu: 1024
-          Memory: 8192
+          Cpu: !Ref TaskCpuParameter
+          Memory: !Ref TaskMemoryParameter
           Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref FargateLogsGroup
+              awslogs-group: !Ref InitTableLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: InitTable
           # Additional configuration for Falcon container sensor
@@ -652,30 +726,42 @@ Resources:
           - 
             - Name: crowdstrike-falcon-volume
           - !Ref "AWS::NoValue"
+  
+  InitTableLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/fargate/InitTable
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   SyncTableTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: !Sub ${AWS::StackName}-SyncTable
-      Cpu: 1024
-      Memory: 8192
+      Cpu: !Ref TaskCpuParameter
+      Memory: !Ref TaskMemoryParameter
       EphemeralStorage:
-        SizeInGiB: 80
+        SizeInGiB: !Ref TaskStorageParameter
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
       TaskRoleArn: !Sub ${TaskRole.Arn}
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
       ContainerDefinitions:
         - Name: !Sub ${AWS::StackName}-SyncTable
-          Cpu: 1024
-          Memory: 8192
+          Cpu: !Ref TaskCpuParameter
+          Memory: !Ref TaskMemoryParameter
           Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:latest
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref FargateLogsGroup
+              awslogs-group: !Ref SyncTableLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: InitTable
           # Additional configuration for Falcon container sensor
@@ -744,6 +830,15 @@ Resources:
           - 
             - Name: crowdstrike-falcon-volume
           - !Ref "AWS::NoValue"       
+
+  SyncTableLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/fargate/SyncTable
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   WorkflowNotificationTopic:
     Type: AWS::SNS::Topic
@@ -815,15 +910,39 @@ Resources:
                   - events:DescribeRule
                 Resource:
                   - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctions*
+        - PolicyName: logging
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/${AWS::StackName}/state-machine/*
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
   CD2RefreshStateMachine:
     Type: AWS::Serverless::StateMachine
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks:
+          - E3001
     Properties:
-      #StateMachineName: !Sub ${AWS::StackName}-state-machine
+      Name: !Sub ${AWS::StackName}-state-machine
       Role: !GetAtt StatesExecutionRole.Arn
+      Logging:
+        Destinations:
+        - CloudWatchLogsLogGroup:
+            LogGroupArn: !Sub ${StateMachineLogGroup.Arn}
+        IncludeExecutionData: true
+        Level: ALL
       Events:
         ThreeHourlySchedule:
           Type: ScheduleV2
@@ -864,27 +983,6 @@ Resources:
                 Mode: INLINE
               StartAt: SyncTable
               States:
-                # SyncTable:
-                #   Type: Task
-                #   Resource: arn:aws:states:::lambda:invoke
-                #   Parameters:
-                #     Payload.$: "$"
-                #     FunctionName: !Ref SyncTableFunction
-                #   Retry:
-                #     - ErrorEquals:
-                #       - Lambda.ServiceException
-                #       - Lambda.AWSLambdaException
-                #       - Lambda.SdkClientException
-                #       - Lambda.TooManyRequestsException
-                #       IntervalSeconds: 2
-                #       MaxAttempts: 6
-                #       BackoffRate: 6
-                #   Catch:
-                #     - ErrorEquals:
-                #       - States.TaskFailed
-                #       ResultPath: "$.error"
-                #       Next: TableFailed
-                #   Next: CheckSyncState
                 SyncTable:
                   Type: Task
                   Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
@@ -1032,13 +1130,22 @@ Resources:
               TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true
 
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${AWS::StackName}/state-machine
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
   AthenaPostgreSQLConnector:
     Type: AWS::Serverless::Application
     Condition: CreateAthenaConnector
     Properties:
       Location:
         ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
-        SemanticVersion: 2024.25.1
+        SemanticVersion: 2024.25.1  
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
@@ -1065,6 +1172,9 @@ Resources:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
             SSEAlgorithm: AES256
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}            
 
   AthenaPostgreSQLConnectorRole:
     Type: AWS::IAM::Role
@@ -1081,6 +1191,9 @@ Resources:
             - lambda.amazonaws.com
           Action:
           - sts:AssumeRole
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   AthenaPostgreSQLConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
@@ -1145,6 +1258,9 @@ Resources:
       Type: LAMBDA
       Parameters:
         function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}          
 
 Outputs:
   AdminSecretArn:

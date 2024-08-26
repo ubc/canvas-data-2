@@ -282,6 +282,14 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}      
 
+  # Attach Canvas database user Secret to the cluster
+  DatabaseUserSecretAttachmentCanvas:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DatabaseUserSecretCanvas
+      TargetId: !Ref AuroraDatabaseCluster
+      TargetType: AWS::RDS::DBCluster          
+
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -351,6 +359,8 @@ Resources:
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       EnableCloudwatchLogsExports:
         - postgresql
+        - upgrade
+        - error
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -366,14 +376,6 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  # Attach Canvas database user Secret to the cluster
-  DatabaseUserSecretAttachmentCanvas:
-    Type: AWS::SecretsManager::SecretTargetAttachment
-    Properties:
-      SecretId: !Ref DatabaseUserSecretCanvas
-      TargetId: !Ref AuroraDatabaseCluster
-      TargetType: AWS::RDS::DBCluster
-
   AuroraDatabaseInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -383,6 +385,33 @@ Resources:
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}            
+
+  DatabasePostgresqlLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/postgresql
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  DatabaseUpgradeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/upgrade
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  DatabaseErrorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/error
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
 
   ListTablesFunction:
     Type: AWS::Serverless::Function

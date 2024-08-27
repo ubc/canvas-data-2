@@ -359,8 +359,6 @@ Resources:
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       EnableCloudwatchLogsExports:
         - postgresql
-        - upgrade
-        - error
       Tags: 
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -390,24 +388,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/postgresql
-      RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
-        - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}
-
-  DatabaseUpgradeLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/upgrade
-      RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
-        - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}
-
-  DatabaseErrorLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/error
       RetentionInDays: !Ref LogRetentionParameter
       Tags: 
         - Key: !Sub ${TagNameParameter}

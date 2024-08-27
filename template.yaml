@@ -159,10 +159,6 @@ Conditions:
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
 
-  # Conditions for Bring Your Own KMS Data Key
-  # ExistingDataKey: !Not [!Equals [!Ref DataKeyIdParameter, '']]
-  # CreateDataKey: !Equals [!Ref DataKeyIdParameter, '']  
-
   # Condition for CrowdStrike Falcon sensor
   # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
@@ -191,7 +187,6 @@ Resources:
 
   DataKmsKey:
     Type: AWS::KMS::Key
-    #Condition: CreateDataKey
     Properties:
       Description: Key for encrypting Canvas Data 2 data
       Enabled: true
@@ -261,7 +256,6 @@ Resources:
 
   DataKeyAlias:
     Type: AWS::KMS::Alias
-    #Condition: CreateDataKey
     Properties:
       AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-data
       TargetKeyId: !Ref DataKmsKey
@@ -354,7 +348,6 @@ Resources:
       EnableHttpEndpoint: true
       BackupRetentionPeriod: 7
       StorageEncrypted: true
-      #KmsKeyId: !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
       KmsKeyId: !GetAtt DataKmsKey.Arn
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       EnableCloudwatchLogsExports:
@@ -477,7 +470,6 @@ Resources:
       ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
-          #FargateEphemeralStorageKmsKeyId: !If [ExistingDataKey, !Ref DataKeyIdParameter, !GetAtt DataKmsKey.Arn]
           FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
       Tags: 
         - Key: !Sub ${TagNameParameter}
@@ -517,7 +509,6 @@ Resources:
                 Action:
                   - kms:*
                 Resource:
-                  #- !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
                   - !GetAtt DataKmsKey.Arn
         - !If
           - ConfigureFalconSensor
@@ -623,7 +614,6 @@ Resources:
               Action:
                 - kms:*
               Resource:
-                #- !If [ExistingDataKey, !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKeyIdParameter}', !GetAtt DataKmsKey.Arn]
                 - !GetAtt DataKmsKey.Arn
       - PolicyName: logging
         PolicyDocument:

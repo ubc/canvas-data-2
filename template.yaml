@@ -651,7 +651,7 @@ Resources:
         - Name: !Sub ${AWS::StackName}-InitTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:latest
+          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -755,7 +755,7 @@ Resources:
         - Name: !Sub ${AWS::StackName}-SyncTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:latest
+          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs

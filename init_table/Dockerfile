@@ -1,4 +1,6 @@
 FROM python:3-alpine
+
+USER app
 WORKDIR /code
 
 COPY requirements.txt ./

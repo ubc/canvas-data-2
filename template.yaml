@@ -128,11 +128,6 @@ Parameters:
     Description: (Optional) SNS topic to send notifications. Leave empty to create a new topic.
     Default: ''
 
-  DataKeyIdParameter:
-    Type: String
-    Description: (Optional) KMS key ID to encrypt data. Leave empty to create a new key.
-    Default: ''
-
   FalconSensorParameter:
     Type: String
     Description: (Optional) Configure CrowdStrike Falcon container sensor. Default is false.

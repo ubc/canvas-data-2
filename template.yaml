@@ -1150,7 +1150,7 @@ Resources:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
         DefaultConnectionString: !Sub |
-          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'
@@ -1208,7 +1208,7 @@ Resources:
         - Effect: Allow
           Action:
           - secretsmanager:GetSecretValue
-          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas*
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup
@@ -1260,7 +1260,33 @@ Resources:
         function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
       Tags: 
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}          
+          Value: !Sub ${TagValueParameter}
+
+  # Secret for PostgreSQL Athena connector "athena" user
+  DatabaseUserSecretAthena:
+    Type: AWS::SecretsManager::Secret
+    Condition: CreateAthenaConnector
+    Properties:
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena
+      Description: Database user for Athena PostgreSQL connector
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "athena"}'
+        GenerateStringKey: password
+        PasswordLength: 128
+        ExcludePunctuation: true
+      KmsKeyId: !Ref SecretsKmsKey
+      Tags: 
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}      
+
+  # Attach Athena database user secret to the cluster
+  DatabaseUserSecretAttachmentAthena:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Condition: CreateAthenaConnector
+    Properties:
+      SecretId: !Ref DatabaseUserSecretAthena
+      TargetId: !Ref AuroraDatabaseCluster
+      TargetType: AWS::RDS::DBCluster          
 
 Outputs:
   AdminSecretArn:

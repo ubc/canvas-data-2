@@ -36,7 +36,3 @@ phases:
       - docker push $REPOSITORY_URI_INIT_TABLE:prod
       - echo Pushing Docker images for sync_table...
       - docker push $REPOSITORY_URI_SYNC_TABLE:prod
-
-artifacts:
-  files:
-    - output.yml

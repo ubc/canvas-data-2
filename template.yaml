@@ -1289,13 +1289,18 @@ Resources:
       TargetType: AWS::RDS::DBCluster          
 
 Outputs:
-  AdminSecretArn:
+  DatabaseAdminSecretArn:
     Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-    Description: Canvas Data 2 database admin user secret
+    Description: Canvas Data 2 database admin user secret ARN
     Export:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-admin-secret-arn
+  DatabaseUserSecretArn:
+    Value: !Ref DatabaseUserSecretCanvas
+    Description: Canvas Data 2 database user secret ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
   AuroraClusterArn:
     Value: !GetAtt AuroraDatabaseCluster.DBClusterArn
-    Description: The ARN of the Canvas Data 2 Aurora cluster
+    Description: Canvas Data 2 Aurora cluster ARN
     Export:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn

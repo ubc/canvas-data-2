@@ -107,6 +107,18 @@ Parameters:
     Type: String
     Description: The ARN for the IAM role creating/updating this stack.
 
+  DatabaseClusterArnParameter:
+    Type: String
+    Description: (Optional) An existing Aurora database cluster ARN. Leave empty to create a new Aurora database cluster.
+    Default: ''
+
+  # Default value is an ARN because it's referenced in the stack within a conditional statement.
+  # It must resolve as an ARN for the template to be valid.
+  DatabaseAdminSecretArnParameter:
+    Type: String
+    Description: (Optional) An existing database admin secret ARN. Use default value if DatabaseClusterArnParameter is empty.
+    Default: arn:aws:secretsmanager:region:123456789123:secret:placeholder
+
   DatabaseSecurityGroupParameter:
     Type: String
     Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
@@ -114,7 +126,7 @@ Parameters:
 
   AthenaConnectorParameter:
     Type: String
-    Description: (Optional) Create an Athena connector for PostgreSQL. Default is false.
+    Description: (Optional) Create an Athena connector for PostgreSQL. Default is false. Must be false when values are set for DatabaseAdminSecretArnParameter and DatabaseSecurityGroupParameter.
     AllowedValues: [true, false]
     Default: false
 
@@ -146,6 +158,15 @@ Parameters:
 
 Conditions:
 
+  # Conditions for Bring Your Own Aurora Database Cluster
+  # Requires both DatabaseClusterArnParameter and DatabaseAdminSecretArnParameter to be specified
+  ExistingDatabase: !Not [!Equals [!Ref DatabaseClusterArnParameter, '']]
+  ExistingDatabaseAdminSecret: !Not [!Equals [!Ref DatabaseAdminSecretArnParameter, 'arn:aws:secretsmanager:region:123456789123:secret:placeholder']]
+  CreateDatabase: !Not
+    - !Or
+        - Condition: ExistingDatabase
+        - Condition: ExistingDatabaseAdminSecret
+
   # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
@@ -154,14 +175,18 @@ Conditions:
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
 
-  # Condition for CrowdStrike Falcon sensor
+  # Condition for optional CrowdStrike Falcon sensor
   # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
   ConfigureFalconSensor: !Equals [true, !Ref FalconSensorParameter]
   
-  # Condition for optional Athena connector
+  # Conditions for optional Athena connector
   # Creates an Athena data source allowing CD2 data to be joined with other data sources
-  CreateAthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
+  # Requires CreateDatabase condition to be true to ensure cluster endpoint and port exist
+  AthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
+  CreateAthenaConnector: !And
+        - Condition: AthenaConnector
+        - Condition: CreateDatabase
 
 Resources:
 
@@ -259,7 +284,7 @@ Resources:
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
@@ -276,7 +301,7 @@ Resources:
     Type: AWS::SecretsManager::SecretTargetAttachment
     Properties:
       SecretId: !Ref DatabaseUserSecretCanvas
-      TargetId: !Ref AuroraDatabaseCluster
+      TargetId: !If [ExistingDatabase, !Select [ "6", !Split [ ":" , !Ref DatabaseClusterArnParameter ] ], !Ref AuroraDatabaseCluster]      
       TargetType: AWS::RDS::DBCluster          
 
   DatabaseSubnetGroup:
@@ -324,6 +349,7 @@ Resources:
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster
+    Condition: CreateDatabase
     Properties:
       Engine: aurora-postgresql
       EngineVersion: 15.5
@@ -364,6 +390,7 @@ Resources:
 
   AuroraDatabaseInstance:
     Type: AWS::RDS::DBInstance
+    Condition: CreateDatabase
     Properties:
       Engine: aurora-postgresql
       DBInstanceClass: db.serverless
@@ -374,6 +401,7 @@ Resources:
 
   DatabasePostgresqlLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: CreateDatabase
     Properties:
       LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/postgresql
       RetentionInDays: !Ref LogRetentionParameter
@@ -561,7 +589,7 @@ Resources:
             - secretsmanager:GetSecretValue
             Resource:
             - !Ref DatabaseUserSecretCanvas
-            - !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
+            - !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
       - PolicyName: kms
         PolicyDocument:
           Statement:
@@ -589,7 +617,7 @@ Resources:
             Action:
             - rds-data:*
             Resource:
-            - !GetAtt AuroraDatabaseCluster.DBClusterArn
+            - !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
       - PolicyName: state_machine
         PolicyDocument:
           Statement:
@@ -1017,9 +1045,9 @@ Resources:
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
                         - Name: ADMIN_SECRET_ARN
-                          Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
+                          Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
                         - Name: DB_CLUSTER_ARN
-                          Value: !GetAtt AuroraDatabaseCluster.DBClusterArn  
+                          Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1289,13 +1317,18 @@ Resources:
       TargetType: AWS::RDS::DBCluster          
 
 Outputs:
-  AdminSecretArn:
-    Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
-    Description: Canvas Data 2 database admin user secret
+  DatabaseAdminSecretArn:
+    Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]          
+    Description: Canvas Data 2 database admin user secret ARN
     Export:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-admin-secret-arn-${EnvironmentParameter}
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-admin-secret-arn
+  DatabaseUserSecretArn:
+    Value: !Ref DatabaseUserSecretCanvas
+    Description: Canvas Data 2 database user secret ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
   AuroraClusterArn:
-    Value: !GetAtt AuroraDatabaseCluster.DBClusterArn
-    Description: The ARN of the Canvas Data 2 Aurora cluster
+    Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
+    Description: Canvas Data 2 Aurora cluster ARN
     Export:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn

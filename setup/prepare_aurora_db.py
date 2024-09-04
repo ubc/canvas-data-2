@@ -35,7 +35,7 @@ admin_username = admin_secret["username"]
 
 # Get CD2 database user secret
 db_user_secret_arn = stack_outputs["DatabaseUserSecretArn"]
-db_user_secret = json.loads(secrets_client.get_secret_value(SecretId=admin_secret_arn)["SecretString"])
+db_user_secret = json.loads(secrets_client.get_secret_value(SecretId=db_user_secret_arn)["SecretString"])
 db_user_username = db_user_secret["username"]
 
 # Get Aurora cluster ARN

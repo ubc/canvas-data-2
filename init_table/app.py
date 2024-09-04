@@ -28,7 +28,7 @@ param_path = f'/{env}/canvas_data_2'
 
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 
-namespace = 'canvas'
+namespace = os.environ.get('DB_SCHEMA', 'canvas')
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)

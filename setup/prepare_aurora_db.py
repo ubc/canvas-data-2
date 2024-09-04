@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--stack-name",
-    help="The name of the CloudFormation stack containing the Aurora database",
+    help="The name of the Canvas Data 2 CloudFormation stack containing the Aurora database",
     required=True,
 )
 args = parser.parse_args()
@@ -28,10 +28,17 @@ console.print("Starting database preparation", style="bold green")
 stack_outputs = {output["OutputKey"]: output["OutputValue"] for output in stack.outputs}
 stack_parameters = {parameter["ParameterKey"]: parameter["ParameterValue"] for parameter in stack.parameters}
 
-# Get admin and cluster details
-admin_secret_arn = stack_outputs["AdminSecretArn"]
+# Get admin secret
+admin_secret_arn = stack_outputs["DatabaseAdminSecretArn"]
 admin_secret = json.loads(secrets_client.get_secret_value(SecretId=admin_secret_arn)["SecretString"])
 admin_username = admin_secret["username"]
+
+# Get CD2 database user secret
+db_user_secret_arn = stack_outputs["DatabaseUserSecretArn"]
+db_user_secret = json.loads(secrets_client.get_secret_value(SecretId=admin_secret_arn)["SecretString"])
+db_user_username = admin_secret["username"]
+
+# Get Aurora cluster ARN
 aurora_cluster_arn = stack_outputs["AuroraClusterArn"]
 
 # Get environment and resource prefix
@@ -48,11 +55,11 @@ role_privileges = {
 # Define user-role mapping
 user_roles = {
     "athena": "read_only",
-    "canvas": "admin"
+    db_user_username: "admin"
 }
 
 # List of usernames that should have schemas created
-users_to_create_schema = ["canvas"]
+users_to_create_schema = [db_user_username]
 
 def get_user_role(username):
     """Retrieve the role for a given username. Return read-only if not found"""
@@ -144,8 +151,8 @@ for s in user_secrets["SecretList"]:
     if username in users_to_create_schema:
         create_schema(username, username, database_name)
     
-    # Create instructure_dap schema for canvas user with them as owner
-    if username == "canvas":
+    # Create instructure_dap schema for the CD2 database user with them as owner
+    if username == db_user_username:
         create_schema("instructure_dap", username, database_name)
 
     # Assign privileges to canvas and instructure_dap schemas

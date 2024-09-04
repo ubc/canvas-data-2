@@ -259,7 +259,7 @@ Resources:
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'

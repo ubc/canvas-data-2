@@ -112,6 +112,8 @@ Parameters:
     Description: (Optional) An existing Aurora database cluster ARN. Leave empty to create a new Aurora database cluster.
     Default: ''
 
+  # Default value is an ARN because it's referenced in the stack within a conditional statement.
+  # It must resolve as an ARN for the template to be valid.
   DatabaseAdminSecretArnParameter:
     Type: String
     Description: (Optional) An existing database admin secret ARN. Use default value if DatabaseClusterArnParameter is empty.
@@ -157,8 +159,9 @@ Parameters:
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
+  # Requires both DatabaseClusterArnParameter and DatabaseAdminSecretArnParameter to be specified
   ExistingDatabase: !Not [!Equals [!Ref DatabaseClusterArnParameter, '']]
-  ExistingDatabaseAdminSecret: !Not [!Equals [!Ref DatabaseAdminSecretArnParameter, '']]
+  ExistingDatabaseAdminSecret: !Not [!Equals [!Ref DatabaseAdminSecretArnParameter, 'arn:aws:secretsmanager:region:123456789123:secret:placeholder']]
   CreateDatabase: !Not
     - !Or
         - Condition: ExistingDatabase
@@ -172,14 +175,14 @@ Conditions:
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
 
-  # Condition for CrowdStrike Falcon sensor
+  # Condition for optional CrowdStrike Falcon sensor
   # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
   ConfigureFalconSensor: !Equals [true, !Ref FalconSensorParameter]
   
-  # Condition for optional Athena connector
+  # Conditions for optional Athena connector
   # Creates an Athena data source allowing CD2 data to be joined with other data sources
-  # Can only be created if the database is created in this stack.
+  # Requires CreateDatabase condition to be true to ensure cluster endpoint and port exist
   AthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
   CreateAthenaConnector: !And
         - Condition: AthenaConnector

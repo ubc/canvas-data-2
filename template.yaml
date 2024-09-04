@@ -55,11 +55,6 @@ Parameters:
     Type: String
     Description: Username for the canvas database user.
 
-  DatabaseSchemaParameter:
-    Type: String
-    Description: Target schema for CD2 data.
-    Default: canvas
-
   DatabaseMinCapacityParameter:
     Type: Number
     Description: Serverless Aurora minimum capacity.
@@ -1025,8 +1020,6 @@ Resources:
                           Value: !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn
                         - Name: DB_CLUSTER_ARN
                           Value: !GetAtt AuroraDatabaseCluster.DBClusterArn  
-                        - Name: DB_SCHEMA
-                          Value: !Ref DatabaseSchemaParameter
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1085,8 +1078,6 @@ Resources:
                           Value: init_table                          
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
-                        - Name: DB_SCHEMA
-                          Value: !Ref DatabaseSchemaParameter
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1308,8 +1299,3 @@ Outputs:
     Description: The ARN of the Canvas Data 2 Aurora cluster
     Export:
       Name: !Sub ${ResourcePrefixParameter}-cd2-aurora-cluster-arn-${EnvironmentParameter}
-  DatabaseSchema:
-    Value: !Ref DatabaseSchemaParameter
-    Description: Target schema for CD2 data
-    Export:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-schema-${EnvironmentParameter}

@@ -30,7 +30,6 @@ db_user_secret_name = os.environ.get("DB_USER_SECRET_NAME")
 admin_secret_arn = os.environ.get("ADMIN_SECRET_ARN")
 param_path = f"/{env}/canvas_data_2"
 api_base_url = os.environ.get("API_BASE_URL", "https://api-gateway.instructure.com")
-namespace = os.environ.get('DB_SCHEMA', 'canvas')
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
@@ -44,6 +43,7 @@ def start(event):
     db_name = db_user_secret["dbname"]
     db_host = db_user_secret["host"]
     db_port = db_user_secret["port"]
+    namespace = db_user
 
     conn_str = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=verify-ca&sslrootcert=rds-combined-ca-bundle.pem"
     db_connection = DatabaseConnection(connection_string=conn_str)

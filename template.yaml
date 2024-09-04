@@ -589,7 +589,7 @@ Resources:
             - secretsmanager:GetSecretValue
             Resource:
             - !Ref DatabaseUserSecretCanvas
-            - !If [ExistingDatabase, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
+            - !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
       - PolicyName: kms
         PolicyDocument:
           Statement:
@@ -1045,7 +1045,7 @@ Resources:
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
                         - Name: ADMIN_SECRET_ARN
-                          Value: !If [ExistingDatabase, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
+                          Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
                         - Name: DB_CLUSTER_ARN
                           Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
                   TimeoutSeconds: 43200
@@ -1318,7 +1318,7 @@ Resources:
 
 Outputs:
   DatabaseAdminSecretArn:
-    Value: !If [ExistingDatabase, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]          
+    Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]          
     Description: Canvas Data 2 database admin user secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-admin-secret-arn

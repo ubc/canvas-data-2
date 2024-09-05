@@ -47,6 +47,11 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the database into.
 
+  SsmPathParameter:
+    Type: String
+    Description: Path to DAP client ID and secret.
+    Default: canvas_data_2
+
   DatabaseAdminUserParameter:
     Type: String
     Description: Username for the admin database user.
@@ -419,7 +424,7 @@ Resources:
         - x86_64
       Policies:
         - SSMParameterReadPolicy:
-            ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
+            ParameterName: !Sub '${EnvironmentParameter}/${SsmPathParameter}*'
       Environment:
         Variables:
           ENV: !Ref EnvironmentParameter
@@ -470,7 +475,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource: 
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -579,7 +584,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource: 
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
             - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:
@@ -1298,7 +1303,7 @@ Resources:
       Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
       GenerateSecretString:
-        SecretStringTemplate: !Sub '{"username": "athena"}'
+        SecretStringTemplate: !Sub '{"username": "athena"}' 
         GenerateStringKey: password
         PasswordLength: 128
         ExcludePunctuation: true

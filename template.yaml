@@ -323,6 +323,11 @@ Resources:
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -356,6 +361,15 @@ Resources:
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
+
+  DatabaseClientSGToEgress5439:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref DatabaseClientSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Sub ${DatabaseSecurityGroupParameter}
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster

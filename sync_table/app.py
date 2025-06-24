@@ -105,6 +105,7 @@ def start(event):
 async def sync_table(credentials, api_base_url, db_connection, namespace, table_name):
     async with DAPClient(api_base_url, credentials) as session:
         await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+        
 
 
 def drop_dependencies(db_name, table_name):

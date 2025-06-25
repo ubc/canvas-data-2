@@ -362,14 +362,25 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  DatabaseClientSGToEgress5439:
+  DatabaseClientEgressToDatabase:
     Type: AWS::EC2::SecurityGroupEgress
+    Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupId: !Ref DatabaseClientSecurityGroup
       IpProtocol: tcp
       FromPort: 5432
       ToPort: 5432
-      DestinationSecurityGroupId: !Sub ${DatabaseSecurityGroupParameter}
+      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+
+  DatabaseClientEgressToExistingDatabase:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: ExistingDatabaseSecurityGroup
+    Properties:
+      GroupId: !Ref DatabaseClientSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref DatabaseSecurityGroupParameter
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster

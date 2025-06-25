@@ -337,7 +337,7 @@ Resources:
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
         - IpProtocol: tcp

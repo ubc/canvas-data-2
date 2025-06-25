@@ -322,7 +322,6 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
-      GroupName: Canvas Data 2 Database Client
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
         - IpProtocol: tcp
@@ -330,6 +329,8 @@ Resources:
           ToPort: 443
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: Name
+          Value: Canvas Data 2 Database Client
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -337,7 +338,6 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
-      GroupName: Canvas Data 2 ListTablesFunction
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
         - IpProtocol: tcp
@@ -345,6 +345,8 @@ Resources:
           ToPort: 443
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: Name
+          Value: Canvas Data 2 ListTablesFunction
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -353,7 +355,6 @@ Resources:
     Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
-      GroupName: Canvas Data 2 Database
       VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -362,6 +363,8 @@ Resources:
           SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
         # TODO: add more ingress rules based on parameter(s)
       Tags:
+        - Key: Name
+          Value: Canvas Data 2 Database
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 

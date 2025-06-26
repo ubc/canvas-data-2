@@ -1,2 +1,2 @@
-rich
-boto3
+rich==13.7.1
+boto3==1.34.144

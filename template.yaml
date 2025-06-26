@@ -29,7 +29,7 @@ Parameters:
       - 'INFO'
       - 'WARN'
       - 'ERROR'
-    Default: INFO      
+    Default: INFO
 
   SkipTablesParameter:
     Type: String
@@ -47,6 +47,11 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: The list of one or more subnets to deploy the database into.
 
+  SsmPathParameter:
+    Type: String
+    Description: Path to DAP client ID and secret.
+    Default: canvas_data_2
+
   DatabaseAdminUserParameter:
     Type: String
     Description: Username for the admin database user.
@@ -62,7 +67,7 @@ Parameters:
 
   DatabaseMaxCapacityParameter:
     Type: Number
-    Description: Serverless Aurora maximum capacity. 
+    Description: Serverless Aurora maximum capacity.
     Default: 4
 
   # Task sizing:
@@ -80,7 +85,7 @@ Parameters:
   TaskStorageParameter:
     Type: Number
     Description: Ephemeral storage allocated to Fargate tasks (GB).
-    Default: 80    
+    Default: 80
 
   ResourcePrefixParameter:
     Type: String
@@ -91,7 +96,7 @@ Parameters:
     Description: Cost tag name.
 
   TagValueParameter:
-    Type: String    
+    Type: String
     Description: Cost tag value.
 
   EcrAccountNumberParameter:
@@ -101,7 +106,7 @@ Parameters:
   LogRetentionParameter:
     Type: Number
     Description: Number of days to retain logs.
-    Default: 90 
+    Default: 90
 
   YourRoleArnParameter:
     Type: String
@@ -170,7 +175,7 @@ Conditions:
   # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
-  
+
   # Conditions for Bring Your Own Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
@@ -179,7 +184,7 @@ Conditions:
   # Configures an additional container task that injects the Falcon sensor into Fargate tasks
   # For more info: https://github.com/CrowdStrike/Container-Security/blob/0d2ae005be852aae403df3feb11e3bf2fd1f5258/aws-ecs/ecs-fargate-guide.md
   ConfigureFalconSensor: !Equals [true, !Ref FalconSensorParameter]
-  
+
   # Conditions for optional Athena connector
   # Creates an Athena data source allowing CD2 data to be joined with other data sources
   # Requires CreateDatabase condition to be true to ensure cluster endpoint and port exist
@@ -195,7 +200,7 @@ Resources:
     Properties:
       Description: Key for encrypting Canvas Data 2 secrets
       Enabled: true
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -270,7 +275,7 @@ Resources:
           # Condition:
           #   StringEquals:
           #     "rds:db-cluster-id": !Sub ${AuroraDatabaseCluster}
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -292,42 +297,58 @@ Resources:
         PasswordLength: 24
         ExcludePunctuation: true
       KmsKeyId: !Ref SecretsKmsKey
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
   # Attach Canvas database user Secret to the cluster
   DatabaseUserSecretAttachmentCanvas:
     Type: AWS::SecretsManager::SecretTargetAttachment
     Properties:
       SecretId: !Ref DatabaseUserSecretCanvas
-      TargetId: !If [ExistingDatabase, !Select [ "6", !Split [ ":" , !Ref DatabaseClusterArnParameter ] ], !Ref AuroraDatabaseCluster]      
-      TargetType: AWS::RDS::DBCluster          
+      TargetId: !If [ExistingDatabase, !Select [ "6", !Split [ ":" , !Ref DatabaseClusterArnParameter ] ], !Ref AuroraDatabaseCluster]
+      TargetType: AWS::RDS::DBCluster
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
+      GroupName: Canvas Data 2 Database Client
       VpcId: !Ref VpcIdParameter
-      Tags: 
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Canvas Data 2 Database Client
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
-  EmptySecurityGroup:
+  ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-empty-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
+      GroupName: Canvas Data 2 ListTablesFunction
       VpcId: !Ref VpcIdParameter
-      Tags: 
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Canvas Data 2 ListTablesFunction
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -336,6 +357,7 @@ Resources:
     Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
+      GroupName: Canvas Data 2 Database
       VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -343,9 +365,31 @@ Resources:
           ToPort: 5432
           SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
         # TODO: add more ingress rules based on parameter(s)
-      Tags: 
+      Tags:
+        - Key: Name
+          Value: Canvas Data 2 Database
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
+
+  DatabaseClientEgressToDatabase:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: CreateDatabaseSecurityGroup
+    Properties:
+      GroupId: !Ref DatabaseClientSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !GetAtt DatabaseSecurityGroup.GroupId
+
+  DatabaseClientEgressToExistingDatabase:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: ExistingDatabaseSecurityGroup
+    Properties:
+      GroupId: !Ref DatabaseClientSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref DatabaseSecurityGroupParameter
 
   AuroraDatabaseCluster:
     Type: AWS::RDS::DBCluster
@@ -373,18 +417,18 @@ Resources:
       DBClusterParameterGroupName: !Ref DatabaseClusterParameterGroup
       EnableCloudwatchLogsExports:
         - postgresql
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
   DatabaseClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
-    Properties: 
+    Properties:
       Description: PostgreSQL parameter group for Canvas Data 2
       Family: aurora-postgresql15
       Parameters:
         rds.force_ssl: 1
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -395,9 +439,9 @@ Resources:
       Engine: aurora-postgresql
       DBInstanceClass: db.serverless
       DBClusterIdentifier: !Ref AuroraDatabaseCluster
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}            
+          Value: !Sub ${TagValueParameter}
 
   DatabasePostgresqlLogGroup:
     Type: AWS::Logs::LogGroup
@@ -405,7 +449,7 @@ Resources:
     Properties:
       LogGroupName: !Sub /aws/rds/cluster/${AuroraDatabaseCluster}/postgresql
       RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -419,7 +463,7 @@ Resources:
         - x86_64
       Policies:
         - SSMParameterReadPolicy:
-            ParameterName: !Sub '${EnvironmentParameter}/canvas_data_2*'
+            ParameterName: !Sub '${EnvironmentParameter}/${SsmPathParameter}*'
       Environment:
         Variables:
           ENV: !Ref EnvironmentParameter
@@ -431,7 +475,7 @@ Resources:
       MemorySize: 256
       VpcConfig:
         SecurityGroupIds:
-          - !Ref EmptySecurityGroup
+          - !Ref ListTablesFunctionSecurityGroup
         SubnetIds: !Ref LambdaSubnetListParameter
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
@@ -441,8 +485,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${AWS::StackName}/lambda/ListTables
-      RetentionInDays: !Ref LogRetentionParameter        
-      Tags: 
+      RetentionInDays: !Ref LogRetentionParameter
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -469,8 +513,8 @@ Resources:
             - ssm:GetParameters
             - ssm:GetParameter
             - ssm:GetParametersByPath
-            Resource: 
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+            Resource:
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -494,7 +538,7 @@ Resources:
       Configuration:
         ManagedStorageConfiguration:
           FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -578,8 +622,8 @@ Resources:
             - ssm:GetParameters
             - ssm:GetParameter
             - ssm:GetParametersByPath
-            Resource: 
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/canvas_data_2*
+            Resource:
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
             - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:
@@ -652,7 +696,7 @@ Resources:
               - logs:PutLogEvents
               Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/${AWS::StackName}/fargate/*
       ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy      
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
   InitTableTaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -667,9 +711,9 @@ Resources:
         - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
       TaskRoleArn: !Sub ${TaskRole.Arn}
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
       ContainerDefinitions:
         - Name: !Sub ${AWS::StackName}-InitTable
           Cpu: !Ref TaskCpuParameter
@@ -683,7 +727,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: InitTable
           # Additional configuration for Falcon container sensor
-          EntryPoint: 
+          EntryPoint:
             !If
               - ConfigureFalconSensor
               -
@@ -698,7 +742,7 @@ Resources:
           Secrets:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - Name: FALCONCTL_OPTS
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}
               - !Ref "AWS::NoValue"
@@ -712,7 +756,7 @@ Resources:
           MountPoints:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - ContainerPath: /tmp/CrowdStrike
                   SourceVolume: crowdstrike-falcon-volume
                   ReadOnly: true
@@ -720,14 +764,14 @@ Resources:
           DependsOn:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - Condition: COMPLETE
                   ContainerName: crowdstrike-falcon-init-container
               - !Ref "AWS::NoValue"
         # Conditional container definition for the falcon-init-container
         - !If
           - ConfigureFalconSensor
-          - 
+          -
             Name: crowdstrike-falcon-init-container
             Image: !Sub ${FalconSensorRepoParameter}
             Essential: false
@@ -745,16 +789,16 @@ Resources:
       Volumes:
         !If
           - ConfigureFalconSensor
-          - 
+          -
             - Name: crowdstrike-falcon-volume
           - !Ref "AWS::NoValue"
-  
+
   InitTableLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${AWS::StackName}/fargate/InitTable
       RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -771,9 +815,9 @@ Resources:
         - FARGATE
       ExecutionRoleArn: !Sub ${FargateExecutionRole.Arn}
       TaskRoleArn: !Sub ${TaskRole.Arn}
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
       ContainerDefinitions:
         - Name: !Sub ${AWS::StackName}-SyncTable
           Cpu: !Ref TaskCpuParameter
@@ -787,10 +831,10 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: InitTable
           # Additional configuration for Falcon container sensor
-          EntryPoint: 
+          EntryPoint:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - /tmp/CrowdStrike/rootfs/lib64/ld-linux-x86-64.so.2
                 - --library-path
                 - /tmp/CrowdStrike/rootfs/lib64
@@ -802,7 +846,7 @@ Resources:
           Secrets:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - Name: FALCONCTL_OPTS
                   ValueFrom: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}
               - !Ref "AWS::NoValue"
@@ -816,7 +860,7 @@ Resources:
           MountPoints:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - ContainerPath: /tmp/CrowdStrike
                   SourceVolume: crowdstrike-falcon-volume
                   ReadOnly: true
@@ -824,14 +868,14 @@ Resources:
           DependsOn:
             !If
               - ConfigureFalconSensor
-              - 
+              -
                 - Condition: COMPLETE
                   ContainerName: crowdstrike-falcon-init-container
               - !Ref "AWS::NoValue"
         # Conditional container definition for the falcon-init-container
         - !If
           - ConfigureFalconSensor
-          - 
+          -
             Name: crowdstrike-falcon-init-container
             Image: !Sub ${FalconSensorRepoParameter}
             Essential: false
@@ -849,16 +893,16 @@ Resources:
       Volumes:
         !If
           - ConfigureFalconSensor
-          - 
+          -
             - Name: crowdstrike-falcon-volume
-          - !Ref "AWS::NoValue"       
+          - !Ref "AWS::NoValue"
 
   SyncTableLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub ${AWS::StackName}/fargate/SyncTable
       RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -867,9 +911,9 @@ Resources:
     Condition: CreateNotificationTopic
     Properties:
       DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -949,9 +993,9 @@ Resources:
                 - logs:ListLogDeliveries
                 - logs:PutResourcePolicy
                 - logs:DescribeResourcePolicies
-                - logs:DescribeLogGroups                
+                - logs:DescribeLogGroups
                 Resource: "*"
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -1025,7 +1069,7 @@ Resources:
                         - !Ref DatabaseClientSecurityGroup
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB                        
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
                     Overrides:
                       ContainerOverrides:
                       - Name: !Sub ${AWS::StackName}-SyncTable
@@ -1065,7 +1109,7 @@ Resources:
                       - States.TaskFailed
                       ResultPath: "$.error"
                       Next: TableFailed
-                  Next: CheckSyncState                
+                  Next: CheckSyncState
                 CheckSyncState:
                   Type: Choice
                   Choices:
@@ -1087,7 +1131,7 @@ Resources:
                         - !Ref DatabaseClientSecurityGroup
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB                        
+                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
                     Overrides:
                       ContainerOverrides:
                       - Name: !Sub ${AWS::StackName}-InitTable
@@ -1103,7 +1147,7 @@ Resources:
                         - Name: POWERTOOLS_METRICS_NAMESPACE
                           Value: canvas-data-2
                         - Name: POWERTOOLS_SERVICE_NAME
-                          Value: init_table                          
+                          Value: init_table
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
                   TimeoutSeconds: 43200
@@ -1163,7 +1207,7 @@ Resources:
     Properties:
       LogGroupName: !Sub ${AWS::StackName}/state-machine
       RetentionInDays: !Ref LogRetentionParameter
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -1173,7 +1217,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
-        SemanticVersion: 2024.25.1  
+        SemanticVersion: 2024.25.1
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
@@ -1200,9 +1244,9 @@ Resources:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
             SSEAlgorithm: AES256
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}            
+          Value: !Sub ${TagValueParameter}
 
   AthenaPostgreSQLConnectorRole:
     Type: AWS::IAM::Role
@@ -1219,13 +1263,13 @@ Resources:
             - lambda.amazonaws.com
           Action:
           - sts:AssumeRole
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
   AthenaPostgreSQLConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
-    Condition: CreateAthenaConnector    
+    Condition: CreateAthenaConnector
     Properties:
       Roles:
       - !Ref AthenaPostgreSQLConnectorRole
@@ -1256,7 +1300,7 @@ Resources:
           - ec2:CreateNetworkInterface
           - ec2:DeleteNetworkInterface
           - ec2:DescribeNetworkInterfaces
-          - ec2:DetachNetworkInterface          
+          - ec2:DetachNetworkInterface
           Resource: '*'
         - Effect: Allow
           Action:
@@ -1286,7 +1330,7 @@ Resources:
       Type: LAMBDA
       Parameters:
         function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
@@ -1303,9 +1347,9 @@ Resources:
         PasswordLength: 128
         ExcludePunctuation: true
       KmsKeyId: !Ref SecretsKmsKey
-      Tags: 
+      Tags:
         - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}      
+          Value: !Sub ${TagValueParameter}
 
   # Attach Athena database user secret to the cluster
   DatabaseUserSecretAttachmentAthena:
@@ -1314,11 +1358,11 @@ Resources:
     Properties:
       SecretId: !Ref DatabaseUserSecretAthena
       TargetId: !Ref AuroraDatabaseCluster
-      TargetType: AWS::RDS::DBCluster          
+      TargetType: AWS::RDS::DBCluster
 
 Outputs:
   DatabaseAdminSecretArn:
-    Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]          
+    Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
     Description: Canvas Data 2 database admin user secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-admin-secret-arn

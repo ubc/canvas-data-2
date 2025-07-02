@@ -207,7 +207,7 @@ Resources:
   SecretsKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-secrets
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
@@ -235,7 +235,7 @@ Resources:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
           Resource: '*'
         - Sid: Allow grant creation permission for Fargate tasks.
           Effect: Allow
@@ -248,7 +248,7 @@ Resources:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
             ForAllValues:StringEquals:
               "kms:GrantOperations":
                 - "Decrypt"
@@ -282,14 +282,14 @@ Resources:
   DataKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-data
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-data
       TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
+      Name: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
@@ -312,7 +312,7 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
+      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
       Tags:
         - Key: !Sub ${TagNameParameter}
@@ -321,7 +321,7 @@ Resources:
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
@@ -338,7 +338,7 @@ Resources:
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-list-tables-function-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 ListTablesFunction
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
@@ -356,7 +356,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Condition: CreateDatabaseSecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-database-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database
       VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
@@ -534,7 +534,7 @@ Resources:
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+      ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
           FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
@@ -910,7 +910,7 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: CreateNotificationTopic
     Properties:
-      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${AWS::StackName} - ${EnvironmentParameter})"
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1222,14 +1222,14 @@ Resources:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
         DefaultConnectionString: !Sub |
-          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'
         LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
-        SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
+        SecretNamePrefix: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
         SecurityGroupIds: !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
@@ -1239,7 +1239,7 @@ Resources:
     Type: AWS::S3::Bucket
     Condition: CreateAthenaConnector
     Properties:
-      BucketName: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-athena-spill-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
@@ -1280,7 +1280,7 @@ Resources:
         - Effect: Allow
           Action:
           - secretsmanager:GetSecretValue
-          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena*
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup
@@ -1339,7 +1339,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Condition: CreateAthenaConnector
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena
+      Name: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "athena"}'

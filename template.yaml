@@ -312,7 +312,7 @@ Resources:
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-subnetgroup-${EnvironmentParameter}
+      DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
       Tags:
         - Key: !Sub ${TagNameParameter}
@@ -321,7 +321,7 @@ Resources:
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-database-client-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
@@ -338,7 +338,7 @@ Resources:
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-list-tables-function-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 ListTablesFunction
       VpcId: !Ref VpcIdParameter
       SecurityGroupEgress:
@@ -356,7 +356,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Condition: CreateDatabaseSecurityGroup
     Properties:
-      GroupDescription: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-database-sg-${EnvironmentParameter}
+      GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database
       VpcId: !Ref VpcIdParameter
       SecurityGroupIngress:
@@ -463,7 +463,7 @@ Resources:
         - x86_64
       Policies:
         - SSMParameterReadPolicy:
-            ParameterName: !Sub '${EnvironmentParameter}/${SsmPathParameter}*'
+            ParameterName: !Sub '${AWS::StackName}/${SsmPathParameter}*'
       Environment:
         Variables:
           ENV: !Ref EnvironmentParameter
@@ -514,7 +514,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource:
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${AWS::StackName}/${SsmPathParameter}*
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -623,7 +623,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource:
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${AWS::StackName}/${SsmPathParameter}*
             - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:

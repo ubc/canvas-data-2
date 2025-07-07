@@ -140,17 +140,17 @@ for s in user_secrets["SecretList"]:
     secret_value = json.loads(secrets_client.get_secret_value(SecretId=secret_arn)["SecretString"])
     username = secret_value["username"]
     database_name = secret_value["dbname"]
-    
+
     # Create or update the user
     create_user(username, secret_value["password"], database_name)
-    
+
     # Grant user to admin user
     grant_user_to_admin(username, admin_username, database_name)
-    
+
     # Create schema for user (with them as owner) if they need a schema
     if username in users_to_create_schema:
         create_schema(username, username, database_name)
-    
+
     # Create instructure_dap schema for the CD2 database user with them as owner
     if username == db_user_username:
         create_schema("instructure_dap", username, database_name)
@@ -158,9 +158,9 @@ for s in user_secrets["SecretList"]:
     # Assign privileges to canvas and instructure_dap schemas
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
-    
+
     grant_usage_to_schema(username, "canvas", database_name)
     assign_privileges(username, "canvas", user_role, database_name)
-    
+
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)

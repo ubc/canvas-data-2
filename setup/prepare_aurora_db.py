@@ -159,8 +159,8 @@ for s in user_secrets["SecretList"]:
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
 
-    grant_usage_to_schema(username, "canvas", database_name)
-    assign_privileges(username, "canvas", user_role, database_name)
+    grant_usage_to_schema(username, username, database_name)
+    assign_privileges(username, username, user_role, database_name)
 
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)

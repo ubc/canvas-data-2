@@ -91,7 +91,7 @@ def create_user(username, password, database_name):
 def create_schema(schema_name, username, database_name):
     """Create a schema with user as owner"""
     try:
-        create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {username} AUTHORIZATION {username}"
+        create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {schema_name} AUTHORIZATION {username}"
         execute_statement(create_schema_sql, database_name)
         console.print(f" - Created schema {schema_name} with owner {username}", style="bold green")
     except ClientError as e:

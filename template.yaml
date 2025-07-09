@@ -161,6 +161,11 @@ Parameters:
     Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
+  SlackWebHookURLSecretNameParameter:
+    Type: String
+    Description: The secret name for Slack Incoming Webhook URL for the notification
+    Default: ''
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -910,10 +915,39 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: CreateNotificationTopic
     Properties:
-      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      DisplayName: !Sub "Canvas Data 2 - ${AWS::StackName} Synchronization Workflow (${EnvironmentParameter})"
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
+
+  SlackNotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-${EnvironmentParameter}-slack-notification
+      CodeUri: slack_notification/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          SLACK_SECRET_ARN: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}
+          AWS_ENVIRONMENT: !Sub ${EnvironmentParameter}
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: "*"
+      Events:
+        SnsTrigger:
+          Type: SNS
+          Properties:
+            Topic: !Ref WorkflowNotificationTopic
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -1198,7 +1232,9 @@ Resources:
             Type: Task
             Resource: arn:aws:states:::sns:publish
             Parameters:
-              Message.$: "$"
+              environment: !Ref EnvironmentParameter
+              stack_name: !Ref AWS::StackName
+              Message.$: 'States.Format("{\"text\": \"CD2 Refresh completed in environment: {} (stack: {}).\\n• Failed: {} tables\\n• Updated: {} tables\\n• Completed: {} tables\"}", $.environment, $.stack_name, $.num_failed, $.num_complete_with_update, $.num_complete)'
               TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true
 

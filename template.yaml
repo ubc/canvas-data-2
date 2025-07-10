@@ -915,7 +915,7 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: CreateNotificationTopic
     Properties:
-      DisplayName: !Sub "Canvas Data 2 - ${AWS::StackName} Synchronization Workflow (${EnvironmentParameter})"
+      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

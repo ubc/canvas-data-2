@@ -947,7 +947,11 @@ Resources:
         SnsTrigger:
           Type: SNS
           Properties:
-            Topic: !Ref WorkflowNotificationTopic
+            Topic:
+              Fn::If:
+                - CreateNotificationTopic
+                - Ref: WorkflowNotificationTopic
+                - Fn::Sub: ${NotificationTopicParameter}
 
   StatesExecutionRole:
     Type: "AWS::IAM::Role"

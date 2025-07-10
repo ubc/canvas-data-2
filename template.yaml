@@ -164,7 +164,7 @@ Parameters:
   SlackWebHookURLSecretNameParameter:
     Type: String
     Description: The secret name for Slack Incoming Webhook URL for the notification
-    Default: ''
+    Default: /canvas-data-2-notification/slackWebhookUrl
 
 Conditions:
 

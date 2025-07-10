@@ -37,7 +37,7 @@ def send_to_slack(message):
         response = requests.post(SLACK_WEBHOOK_URL, json={"text": message})
 
         if not response.ok:
-            logger.error(f"Failed to send message to Slack: {response.status_code} - {response.text}")
+            logger.error(f"Failed to send message to Slack: {response.status_code}")
     except Exception as e:
         logger.exception(f"An error occured during the send_to_slack() operation: {e}")
 

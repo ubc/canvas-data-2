@@ -1200,7 +1200,7 @@ Resources:
             Parameters:
               environment: !Ref EnvironmentParameter
               stack_name: !Ref AWS::StackName
-              Message.$: 'States.Format("{\"username\": \"Canvas-Data-2 {}\", \"text\": \"CD2 Refresh completed in environment: {} (stack: {}).\\n• Failed: {} tables\\n• Updated: {} tables\\n• Completed: {} tables\"}", $.environment, $.environment, $.stack_name, $.num_failed, $.num_complete_with_update, $.num_complete)'
+              Message.$: States.Format("{\"username\": \"Canvas-Data-2 {}\", \"text\": \"CD2 Refresh completed in environment: {} (stack: {}).\\n• Failed: {} tables\\n• Updated: {} tables\\n• Completed: {} tables\"}", $.environment, $.environment, $.stack_name, $.num_failed, $.num_complete_with_update, $.num_complete)
               TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true
 

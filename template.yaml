@@ -1253,8 +1253,6 @@ Resources:
             Type: Task
             Resource: arn:aws:states:::sns:publish
             Parameters:
-              environment: !Ref EnvironmentParameter
-              stack_name: !Ref AWS::StackName
               Message.$: "$"
               TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true

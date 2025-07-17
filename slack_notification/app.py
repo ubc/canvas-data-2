@@ -4,6 +4,7 @@ import boto3
 import requests
 from botocore.exceptions import ClientError
 import logging
+import ast
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,6 +43,8 @@ def send_to_slack(message):
         logger.exception(f"An error occured during the send_to_slack() operation: {e}")
 
 def process_table_update_message(message):
+    """Transform the string message from the step function into the real data."""
+    message = ast.literal_eval(message)
 
     # Merge all single-key dictionaries into one.
     merged_data = {k: v for d in message for k, v in d.items()}

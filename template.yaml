@@ -931,7 +931,7 @@ Resources:
       Timeout: 10
       Environment:
         Variables:
-          SLACK_SECRET_ARN: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}
+          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
           AWS_ENVIRONMENT: !Sub ${EnvironmentParameter}
       Role: !GetAtt SlackNotificationFunctionRole.Arn
       Events:
@@ -962,7 +962,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup

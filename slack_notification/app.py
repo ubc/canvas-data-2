@@ -69,7 +69,7 @@ def lambda_handler(event, context):
 
     sns_message = process_table_update_message(sns_message)
 
-    sns_title = "*Canvas Data 2 Workflow Notification*:\n"
+    sns_title = f"*Canvas Data 2 ({ENVIRONMENT}) Workflow Notification*:\n"
     sns_message = sns_title + sns_message
 
     try:

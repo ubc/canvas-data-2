@@ -1,4 +1,4 @@
-FROM docker.io/library/python:3-alpine
+FROM public.ecr.aws/docker/library/python:3-alpine
 
 ARG UID=1012
 ARG GID=1012

@@ -54,7 +54,7 @@ def process_table_update_message(message):
         f'failed_init: {merged_data["failed_init"]} \n'
         f'failed_sync: {merged_data["failed_sync"]} \n'
         f'complete_with_update: {merged_data["complete_with_update"]} \n'
-        f'complete: {merged_data["complete"]} \n'
+        #f'complete: {merged_data["complete"]} \n'
         f'Number of Tables Failed : {merged_data["num_failed"]} \n'
         f'Number of Tables Complete with Update : {merged_data["num_complete_with_update"]} \n'
         f'Number of Complete: {merged_data["num_complete"]} \n'

@@ -13,6 +13,7 @@ from dap.integration.database import DatabaseConnection
 from dap.integration.database_errors import NonExistingTableError
 from dap.replicator.sql import SQLReplicator
 from pysqlsync.base import QueryException
+import requests
 
 region = os.environ.get("AWS_REGION")
 
@@ -30,6 +31,32 @@ db_user_secret_name = os.environ.get("DB_USER_SECRET_NAME")
 admin_secret_arn = os.environ.get("ADMIN_SECRET_ARN")
 param_path = f"/{env}/canvas_data_2"
 api_base_url = os.environ.get("API_BASE_URL", "https://api-gateway.instructure.com")
+
+FUNCTION_NAME = 'sync_table'
+
+def get_ecs_log_url():
+    # Get region from env
+    region = os.environ.get('AWS_REGION', 'ca-central-1')  # fallback if not set
+
+    # Get ECS metadata
+    metadata_uri = os.environ.get('ECS_CONTAINER_METADATA_URI_V4')
+    if not metadata_uri:
+        raise Exception("ECS_CONTAINER_METADATA_URI_V4 not set")
+
+    metadata = requests.get(f"{metadata_uri}/task").json()
+
+    log_group = metadata['Containers'][0]['LogOptions']['awslogs-group']
+    log_stream = metadata['Containers'][0]['LogOptions']['awslogs-stream']
+
+    log_url = (
+        f"https://{region}.console.aws.amazon.com/cloudwatch/home"
+        f"?region={region}#logsV2:log-groups/log-group:{log_group.replace('/', '$2F')}/log-events/{log_stream}"
+    )
+
+    return log_url
+
+def generate_error_string(function_name, table_name, state, error_message, cloudwatch_log_url, exception_type):
+    return f"Task: {function_name}, table_name: {table_name}, state: {state}, error: {error_message}, cloudwatch_log_url: {cloudwatch_log_url}, exception: {exception_type}"
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
@@ -51,6 +78,8 @@ def start(event):
     credentials = Credentials.create(
         client_id=dap_client_id, client_secret=dap_client_secret
     )
+
+    cloudwatch_log_url = get_ecs_log_url()
 
     table_name = event["table_name"]
 
@@ -80,7 +109,8 @@ def start(event):
             except Exception as e:
                 logger.exception(e)
                 event["state"] = "failed"
-                event["error_message"] = {"table_name": table_name, "error": str(e)}
+                # Make the each error as string.
+                event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "Exception druing ALTER TABLE")
             finally:
                 restore_dependencies(db_name="cd2", table_name=table_name)
         else:
@@ -88,18 +118,18 @@ def start(event):
     except NonExistingTableError as e:
         logger.exception(e)
         event["state"] = "needs_init"
-        event["error_message"] = {"table_name": table_name, "error": str(e)}
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "NonExistingTableError")
     except ValueError as e:
         logger.exception(e)
         if "table not initialized" in str(e):
             event["state"] = "needs_init"
         else:
             event["state"] = "failed"
-        event["error_message"] = {"table_name": table_name, "error": str(e)}
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "ValueError")
     except Exception as e:
         logger.exception(e)
         event["state"] = "failed"
-        event["error_message"] = {"table_name": table_name, "error": str(e)}
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "Exception")
 
     logger.info(f"event: {event}")
 

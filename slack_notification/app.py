@@ -49,8 +49,11 @@ def process_table_update_message(message):
     # Merge all single-key dictionaries into one.
     merged_data = {k: v for d in message for k, v in d.items()}
 
+    print(f"failed table sync errors: {merged_data["failed_error_messages"]}")
+
     message = (
         f'failed: {merged_data["failed"]} \n'
+        #f'failed_error_messages: {merged_data["failed_error_messages"]} \n'
         f'failed_init: {merged_data["failed_init"]} \n'
         f'failed_sync: {merged_data["failed_sync"]} \n'
         f'complete_with_update: {merged_data["complete_with_update"]} \n'

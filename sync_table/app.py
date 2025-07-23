@@ -50,7 +50,7 @@ def get_ecs_log_url():
 
     log_url = (
         f"https://{region}.console.aws.amazon.com/cloudwatch/home"
-        f"?region={region}#logsV2:log-groups/log-group:{log_group.replace('/', '$252F')}/log-events/{log_stream}"
+        f"?region={region}#logsV2:log-groups/log-group:{log_group.replace('/', '$252F')}/log-events/{log_stream.replace('/', '$252F')}"
     )
 
     return log_url

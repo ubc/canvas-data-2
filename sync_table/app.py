@@ -55,8 +55,11 @@ def get_ecs_log_url():
 
     return log_url
 
-def generate_error_string(function_name, table_name, state, error_message, cloudwatch_log_url, exception_type):
-    return f"Task: {function_name}, table_name: {table_name}, state: {state}, error: {error_message}, cloudwatch_log_url: {cloudwatch_log_url}, exception: {exception_type}"
+def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
+    if len(str(exception)) != 0:
+        return f"Task: {function_name}, Table Name: {table_name}, State: {state}, Error Message: {str(exception)}, <{cloudwatch_log_url}|CloudWatch Log>"
+    else:
+        return f"Task: {function_name}, Table Name: {table_name}, State: {state}, Exception Name: {type(exception).__name__}, <{cloudwatch_log_url}|CloudWatch Log>"
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
@@ -110,7 +113,7 @@ def start(event):
                 logger.exception(e)
                 event["state"] = "failed"
                 # Make the each error as string.
-                event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "Exception druing ALTER TABLE")
+                event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
             finally:
                 restore_dependencies(db_name="cd2", table_name=table_name)
         else:
@@ -118,18 +121,18 @@ def start(event):
     except NonExistingTableError as e:
         logger.exception(e)
         event["state"] = "needs_init"
-        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "NonExistingTableError")
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
     except ValueError as e:
         logger.exception(e)
         if "table not initialized" in str(e):
             event["state"] = "needs_init"
         else:
             event["state"] = "failed"
-        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "ValueError")
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
     except Exception as e:
         logger.exception(e)
         event["state"] = "failed"
-        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], str(e), cloudwatch_log_url, "Exception")
+        event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
 
     logger.info(f"event: {event}")
 

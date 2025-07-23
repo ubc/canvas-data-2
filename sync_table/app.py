@@ -80,6 +80,7 @@ def start(event):
             except Exception as e:
                 logger.exception(e)
                 event["state"] = "failed"
+                event["error_message"] = {"table_name": table_name, "error": str(e)}
             finally:
                 restore_dependencies(db_name="cd2", table_name=table_name)
         else:
@@ -87,15 +88,18 @@ def start(event):
     except NonExistingTableError as e:
         logger.exception(e)
         event["state"] = "needs_init"
+        event["error_message"] = {"table_name": table_name, "error": str(e)}
     except ValueError as e:
         logger.exception(e)
         if "table not initialized" in str(e):
             event["state"] = "needs_init"
         else:
             event["state"] = "failed"
+        event["error_message"] = {"table_name": table_name, "error": str(e)}
     except Exception as e:
         logger.exception(e)
         event["state"] = "failed"
+        event["error_message"] = {"table_name": table_name, "error": str(e)}
 
     logger.info(f"event: {event}")
 
@@ -105,7 +109,6 @@ def start(event):
 async def sync_table(credentials, api_base_url, db_connection, namespace, table_name):
     async with DAPClient(api_base_url, credentials) as session:
         await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
-        
 
 
 def drop_dependencies(db_name, table_name):
@@ -176,9 +179,9 @@ if __name__ == "__main__":
     if token:
         stepfunctions.send_task_success(
             taskToken=token,
-            output=json.dumps(payload)) 
+            output=json.dumps(payload))
 
-""" 
+"""
     if token and result['state'] == 'failed':
         stepfunctions.send_task_failure(
             taskToken=token,

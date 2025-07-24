@@ -57,9 +57,9 @@ def get_ecs_log_url():
 
 def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
     if len(str(exception)) != 0:
-        return f"Task: {function_name}, Table Name: {table_name}, State: {state}, Error Message: {str(exception)}, <{cloudwatch_log_url}|CloudWatch Log>"
+        return f"{table_name} - {function_name} - {state}, Error: {str(exception)} (<{cloudwatch_log_url}|CloudWatch Log>)"
     else:
-        return f"Task: {function_name}, Table Name: {table_name}, State: {state}, Exception Name: {type(exception).__name__}, <{cloudwatch_log_url}|CloudWatch Log>"
+        return f"{table_name} - {function_name} - {state}, Error: {type(exception).__name__} (<{cloudwatch_log_url}|CloudWatch Log>)"
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)

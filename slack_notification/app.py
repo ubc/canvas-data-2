@@ -46,21 +46,20 @@ def process_table_update_message(message):
     """Transform the string message from the step function into the real data."""
     message = ast.literal_eval(message)
 
-    # Merge all single-key dictionaries into one.
-    merged_data = {k: v for d in message for k, v in d.items()}
-
-    print(f"failed table sync errors: {merged_data["failed_error_messages"]}")
+    complete_tables = [item["table_name"] for item in message if item.get("state") == "complete"]
+    failed = [item for item in message if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
+    failed_tables = [item["table_name"] for item in failed if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
+    failed_init_tables = [item["table_name"] for item in message if item.get("state") == "needs_init"]
+    failed_sync_tables = [item["table_name"] for item in message if item.get("state") == "needs_sync"]
+    error_messages = [item.get("error_message") for item in failed]
 
     message = (
-        f'failed: {merged_data["failed"]} \n'
-        #f'failed_error_messages: {merged_data["failed_error_messages"]} \n'
-        f'failed_init: {merged_data["failed_init"]} \n'
-        f'failed_sync: {merged_data["failed_sync"]} \n'
-        f'complete_with_update: {merged_data["complete_with_update"]} \n'
-        #f'complete: {merged_data["complete"]} \n'
-        f'Number of Tables Failed : {merged_data["num_failed"]} \n'
-        f'Number of Tables Complete with Update : {merged_data["num_complete_with_update"]} \n'
-        f'Number of Complete: {merged_data["num_complete"]} \n'
+        f'Number of Complate Tables: {str(len(complete_tables))} \n'
+        f'Number of Failed Tables: {str(len(failed_tables))} \n'
+        f'Failed Tables: {str(failed_tables)} \n'
+        f'Failed InitTables: {str(failed_init_tables)} \n'
+        f'Failed SyncTables: {str(failed_sync_tables)} \n'
+        f'Errors: \n' + '\n'.join(f'{i + 1}. {msg}' for i, msg in enumerate(error_messages))
     )
 
     return message

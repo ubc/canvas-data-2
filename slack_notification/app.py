@@ -51,7 +51,7 @@ def process_table_update_message(message):
     failed_tables_number_lower_threshold = 2
     failed_tables_number_upper_threshold = 10
 
-    sns_title = f"*{STACK_NAME} ({ENVIRONMENT})\n"
+    sns_title = f"*{STACK_NAME} ({ENVIRONMENT})*\n"
 
     """Transform the string message from the step function into the real data."""
     message = ast.literal_eval(message)

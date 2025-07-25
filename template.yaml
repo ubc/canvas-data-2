@@ -933,6 +933,7 @@ Resources:
         Variables:
           SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
           AWS_ENVIRONMENT: !Sub ${EnvironmentParameter}
+          STACK_NAME: !Sub ${AWS::StackName}
       Role: !GetAtt SlackNotificationFunctionRole.Arn
       Events:
         SnsTrigger:

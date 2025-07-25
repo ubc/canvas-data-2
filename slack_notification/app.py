@@ -30,6 +30,7 @@ def get_secret_value(secret_name, region):
 REGION = os.environ["AWS_REGION"]
 ENVIRONMENT = os.environ["AWS_ENVIRONMENT"]
 SLACK_WEBHOOK_URL_SECRET_NAME = os.getenv("SLACK_WEBHOOK_SECRET_NAME")
+STACK_NAME =  os.environ["STACK_NAME"]
 
 def send_to_slack(message):
     """Send a message to Slack."""
@@ -50,7 +51,7 @@ def process_table_update_message(message):
     failed_tables_number_lower_threshold = 2
     failed_tables_number_upper_threshold = 10
 
-    sns_title = f"*Canvas Data 2 ({ENVIRONMENT}) Workflow Notification*:\n"
+    sns_title = f"*{STACK_NAME} ({ENVIRONMENT})\n"
 
     """Transform the string message from the step function into the real data."""
     message = ast.literal_eval(message)

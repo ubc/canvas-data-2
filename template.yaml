@@ -485,6 +485,8 @@ Resources:
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
       Role: !GetAtt ListTablesRole.Arn
+      Layers:
+        - !Ref CD2LambdaLayer
 
   ListTablesLogGroup:
     Type: AWS::Logs::LogGroup
@@ -944,6 +946,8 @@ Resources:
                 - CreateNotificationTopic
                 - Ref: WorkflowNotificationTopic
                 - Fn::Sub: ${NotificationTopicParameter}
+      Layers:
+        - !Ref CD2LambdaLayer
 
   SlackNotificationFunctionRole:
     Type: AWS::IAM::Role
@@ -1417,6 +1421,15 @@ Resources:
       SecretId: !Ref DatabaseUserSecretAthena
       TargetId: !Ref AuroraDatabaseCluster
       TargetType: AWS::RDS::DBCluster
+
+  CD2LambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: CD2LambdaLayer
+      Description: Additional Python Libraries for CD2 Lambda functions.
+      ContentUri: lambda-layers
+      CompatibleRuntimes:
+        - python3.12
 
 Outputs:
   DatabaseAdminSecretArn:

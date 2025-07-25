@@ -55,8 +55,6 @@ def process_table_update_message(message):
     complete_tables_with_schema_update = [item["table_name"] for item in message if item.get("state") == "complete_with_update"]
     failed = [item for item in message if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
     failed_tables = [item["table_name"] for item in failed if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
-    failed_init_tables = [item["table_name"] for item in message if item.get("state") == "needs_init"]
-    failed_sync_tables = [item["table_name"] for item in message if item.get("state") == "needs_sync"]
     error_messages = [item.get("error_message") for item in failed]
 
     number_of_failed_tables = len(failed_tables)
@@ -69,8 +67,6 @@ def process_table_update_message(message):
         f'{green_check_mark_emoji} Complete w/ Schema Update: {str(len(complete_tables_with_schema_update))} \n'
         f'{failed_table_number_emoji} Failed: {str(number_of_failed_tables)} \n'
         f'Failed Tables: {str(failed_tables)} \n'
-        f'Failed InitTables: {str(failed_init_tables)} \n'
-        f'Failed SyncTables: {str(failed_sync_tables)} \n'
         f'Errors: \n' + '\n'.join(f'{i + 1}. {msg}' for i, msg in enumerate(error_messages))
     )
 

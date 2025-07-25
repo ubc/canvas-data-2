@@ -52,6 +52,7 @@ def process_table_update_message(message):
     message = ast.literal_eval(message)
 
     complete_tables = [item["table_name"] for item in message if item.get("state") == "complete"]
+    complete_tables_with_schema_update = [item["table_name"] for item in message if item.get("state") == "complete_with_update"]
     failed = [item for item in message if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
     failed_tables = [item["table_name"] for item in failed if item.get("state") == "failed" or item.get("state") == "needs_init" or item.get("state") == "needs_sync"]
     failed_init_tables = [item["table_name"] for item in message if item.get("state") == "needs_init"]
@@ -65,6 +66,7 @@ def process_table_update_message(message):
 
     message = (
         f'{green_check_mark_emoji} Number of Complate Tables: {str(len(complete_tables))} \n'
+        f'{green_check_mark_emoji} Number of Complate Tables with Schema Update: {str(len(complete_tables_with_schema_update))} \n'
         f'{failed_table_number_emoji} Number of Failed Tables: {str(number_of_failed_tables)} \n'
         f'Failed Tables: {str(failed_tables)} \n'
         f'Failed InitTables: {str(failed_init_tables)} \n'

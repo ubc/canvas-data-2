@@ -43,6 +43,11 @@ def send_to_slack(message):
         logger.exception(f"An error occured during the send_to_slack() operation: {e}")
 
 def process_table_update_message(message):
+    green_check_mark_emoji = ':check_mark_button:'
+    red_cross_mark_emoji = ':cross_mark:'
+    failed_table_number_emoji = green_check_mark_emoji
+    failed_tables_number_limit = 2
+
     """Transform the string message from the step function into the real data."""
     message = ast.literal_eval(message)
 
@@ -53,9 +58,14 @@ def process_table_update_message(message):
     failed_sync_tables = [item["table_name"] for item in message if item.get("state") == "needs_sync"]
     error_messages = [item.get("error_message") for item in failed]
 
+    number_of_failed_tables = len(failed_tables)
+
+    if number_of_failed_tables > failed_tables_number_limit:
+        failed_table_number_emoji = red_cross_mark_emoji
+
     message = (
-        f'Number of Complate Tables: {str(len(complete_tables))} \n'
-        f'Number of Failed Tables: {str(len(failed_tables))} \n'
+        f'{green_check_mark_emoji} Number of Complate Tables: {str(len(complete_tables))} \n'
+        f'{failed_table_number_emoji} Number of Failed Tables: {str(number_of_failed_tables)} \n'
         f'Failed Tables: {str(failed_tables)} \n'
         f'Failed InitTables: {str(failed_init_tables)} \n'
         f'Failed SyncTables: {str(failed_sync_tables)} \n'

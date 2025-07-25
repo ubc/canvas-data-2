@@ -65,9 +65,9 @@ def process_table_update_message(message):
         failed_table_number_emoji = red_cross_mark_emoji
 
     message = (
-        f'{green_check_mark_emoji} Number of Complate Tables: {str(len(complete_tables))} \n'
-        f'{green_check_mark_emoji} Number of Complate Tables with Schema Update: {str(len(complete_tables_with_schema_update))} \n'
-        f'{failed_table_number_emoji} Number of Failed Tables: {str(number_of_failed_tables)} \n'
+        f'{green_check_mark_emoji} Complete: {str(len(complete_tables))} \n'
+        f'{green_check_mark_emoji} Complete w/ Schema Update: {str(len(complete_tables_with_schema_update))} \n'
+        f'{failed_table_number_emoji} Failed: {str(number_of_failed_tables)} \n'
         f'Failed Tables: {str(failed_tables)} \n'
         f'Failed InitTables: {str(failed_init_tables)} \n'
         f'Failed SyncTables: {str(failed_sync_tables)} \n'

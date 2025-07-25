@@ -58,6 +58,9 @@ def get_ecs_log_url():
 def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
     if len(str(exception)) != 0:
         return f"{table_name} - {function_name} - {state}, Error: {str(exception)} (<{cloudwatch_log_url}|CloudWatch Log>)"
+
+    # This is for the ProcessingError thrown by the tables: grading_period_groups and grading_periods.
+    # This particular error object doesn't have any error message. In this case, we use the name of the class of an exception object.
     else:
         return f"{table_name} - {function_name} - {state}, Error: {type(exception).__name__} (<{cloudwatch_log_url}|CloudWatch Log>)"
 

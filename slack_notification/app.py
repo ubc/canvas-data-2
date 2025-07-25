@@ -43,8 +43,8 @@ def send_to_slack(message):
         logger.exception(f"An error occured during the send_to_slack() operation: {e}")
 
 def process_table_update_message(message):
-    green_check_mark_emoji = ':check_mark_button:'
-    red_cross_mark_emoji = ':cross_mark:'
+    green_check_mark_emoji = ':white_check_mark:'
+    red_cross_mark_emoji = ':x:'
     warning_mark_emoji = ':warning:'
     failed_table_number_emoji = green_check_mark_emoji
     failed_tables_number_lower_threshold = 2

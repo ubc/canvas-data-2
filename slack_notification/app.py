@@ -45,8 +45,12 @@ def send_to_slack(message):
 def process_table_update_message(message):
     green_check_mark_emoji = ':check_mark_button:'
     red_cross_mark_emoji = ':cross_mark:'
+    warning_mark_emoji = ':warning:'
     failed_table_number_emoji = green_check_mark_emoji
-    failed_tables_number_limit = 2
+    failed_tables_number_lower_threshold = 2
+    failed_tables_number_upper_threshold = 10
+
+    sns_title = f"*Canvas Data 2 ({ENVIRONMENT}) Workflow Notification*:\n"
 
     """Transform the string message from the step function into the real data."""
     message = ast.literal_eval(message)
@@ -59,8 +63,14 @@ def process_table_update_message(message):
 
     number_of_failed_tables = len(failed_tables)
 
-    if number_of_failed_tables > failed_tables_number_limit:
+    # If the number of failed tables reachs the threshold
+    if number_of_failed_tables > failed_tables_number_upper_threshold:
+        sns_title = "<!channel> " + sns_title
         failed_table_number_emoji = red_cross_mark_emoji
+    elif number_of_failed_tables > failed_tables_number_lower_threshold:
+        failed_table_number_emoji = red_cross_mark_emoji
+    else:
+        failed_table_number_emoji = warning_mark_emoji
 
     message = (
         f'{green_check_mark_emoji} Complete: {str(len(complete_tables))} \n'
@@ -70,6 +80,8 @@ def process_table_update_message(message):
         f'Errors: \n' + '\n'.join(f'{i + 1}. {msg}' for i, msg in enumerate(error_messages))
     )
 
+    message = sns_title + message
+
     return message
 
 def lambda_handler(event, context):
@@ -78,9 +90,6 @@ def lambda_handler(event, context):
     sns_message = event['Records'][0]['Sns']['Message']
 
     sns_message = process_table_update_message(sns_message)
-
-    sns_title = f"*Canvas Data 2 ({ENVIRONMENT}) Workflow Notification*:\n"
-    sns_message = sns_title + sns_message
 
     try:
         send_to_slack(sns_message)

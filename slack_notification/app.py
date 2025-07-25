@@ -77,8 +77,7 @@ def process_table_update_message(message):
         f'{green_check_mark_emoji} Complete: {str(len(complete_tables))} \n'
         f'{green_check_mark_emoji} Complete w/ Schema Update: {str(len(complete_tables_with_schema_update))} \n'
         f'{failed_table_number_emoji} Failed: {str(number_of_failed_tables)} \n'
-        f'Failed Tables: {str(failed_tables)} \n'
-        f'Errors: \n' + '\n'.join(f'{i + 1}. {msg}' for i, msg in enumerate(error_messages))
+        f'Failed Tables: \n' + '\n'.join(f'{i + 1}. {msg}' for i, msg in enumerate(error_messages))
     )
 
     message = sns_title + message

@@ -57,11 +57,7 @@ def get_ecs_log_url():
 
 def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
     if len(str(exception)) != 0:
-        message = exception.args[0] if exception.args else str(exception)
-        print(f"str(exception): {str(exception)}")
-        print(f"message: {message}")
-        print(f"repr(exception): {repr(exception)}")
-        return f"{table_name} - {function_name} - {state}, Error: {message} (<{cloudwatch_log_url}|CloudWatch Log>)"
+        return f"{table_name} - {function_name} - {state}, Error: {str(exception)} (<{cloudwatch_log_url}|CloudWatch Log>)"
     else:
         return f"{table_name} - {function_name} - {state}, Error: {type(exception).__name__} (<{cloudwatch_log_url}|CloudWatch Log>)"
 

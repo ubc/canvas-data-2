@@ -64,13 +64,7 @@ def lambda_handler(event, context: LambdaContext):
         logger.exception(e)
         message = generate_error_message(e)
 
-        """
-        Send a slack notification to alert any issue during the list_tables operation.
-
-        If it generates the invalid_client error, you need to do the following:
-            1. Create a new Canvas Data 2 API Key.
-            2. Update the dap_client_id and dap_client_secret in the AWS Systems Manager - Parameter Store.
-        """
+        # Send a slack notification to alert any issue during the list_tables operation.
         try:
             send_to_slack(message, SLACK_WEBHOOK_URL)
         except Exception as e:

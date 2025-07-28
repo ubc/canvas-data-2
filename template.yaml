@@ -524,6 +524,14 @@ Resources:
             - ssm:GetParametersByPath
             Resource:
             - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
+      - PolicyName: SecretsManagerPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'

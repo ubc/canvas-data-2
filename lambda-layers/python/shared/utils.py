@@ -33,3 +33,11 @@ def send_to_slack(message, slack_webhook_url):
             logger.error(f"Failed to send message to Slack: {response.status_code}")
     except Exception as e:
         logger.exception(f"An error occured during the send_to_slack() operation: {e}")
+
+def get_full_environment_name(environment_string):
+    if  "stg" in environment_string.lower() or "stag" in environment_string.lower():
+        full_environment_name = "Staging"
+    elif "prod" in environment_string.lower():
+        full_environment_name = "Production"
+
+    return full_environment_name

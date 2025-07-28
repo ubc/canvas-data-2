@@ -3,8 +3,7 @@ import sys
 import logging
 import ast
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from shared.utils import get_secret_value, send_to_slack
+from shared.utils import get_secret_value, send_to_slack, get_full_environment_name
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -24,10 +23,7 @@ def process_table_update_message(message):
     failed_tables_number_lower_threshold = 2
     failed_tables_number_upper_threshold = 10
 
-    if  "stg" in ENVIRONMENT.lower() or "stag" in ENVIRONMENT.lower():
-        environment_name = "Staging"
-    elif "prod" in ENVIRONMENT.lower():
-        environment_name = "Production"
+    environment_name = get_full_environment_name(ENVIRONMENT)
 
     sns_title = f"*{STACK_NAME} ({environment_name})*\n"
 

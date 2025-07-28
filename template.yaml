@@ -476,6 +476,8 @@ Resources:
           POWERTOOLS_SERVICE_NAME: list_tables
           LOG_LEVEL: !Ref LogLevel
           SKIP_TABLES: !Ref SkipTablesParameter
+          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
+          STACK_NAME: !Sub ${AWS::StackName}
       Timeout: 120
       MemorySize: 256
       VpcConfig:

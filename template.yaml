@@ -488,7 +488,7 @@ Resources:
         LogGroup: !Ref ListTablesLogGroup
       Role: !GetAtt ListTablesRole.Arn
       Layers:
-        - !Ref CD2LambdaLayer
+        - !Ref LambdaLayer
 
   ListTablesLogGroup:
     Type: AWS::Logs::LogGroup
@@ -957,7 +957,7 @@ Resources:
                 - Ref: WorkflowNotificationTopic
                 - Fn::Sub: ${NotificationTopicParameter}
       Layers:
-        - !Ref CD2LambdaLayer
+        - !Ref LambdaLayer
 
   SlackNotificationFunctionRole:
     Type: AWS::IAM::Role
@@ -1432,10 +1432,10 @@ Resources:
       TargetId: !Ref AuroraDatabaseCluster
       TargetType: AWS::RDS::DBCluster
 
-  CD2LambdaLayer:
+  LambdaLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      LayerName: CD2LambdaLayer
+      LayerName: !Sub ${AWS::StackName}
       Description: Additional Python Libraries for CD2 Lambda functions.
       ContentUri: lambda-layers
       CompatibleRuntimes:

@@ -31,9 +31,10 @@ SLACK_WEBHOOK_URL = get_secret_value(SLACK_WEBHOOK_URL_SECRET_NAME, REGION)
 
 def generate_error_message(input_error):
     environment_name = get_full_environment_name(env)
+    red_cross_mark_emoji = ':x:'
 
     sns_title = f"<!channel> *{STACK_NAME} ({environment_name})*\n"
-    message = f"The ListTables step failed with the following error: \n {input_error}"
+    message = f"{red_cross_mark_emoji} The ListTables step failed with the following error: \n {input_error}"
 
     return sns_title + message
 

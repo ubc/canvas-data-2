@@ -74,7 +74,7 @@ def lambda_handler(event, context: LambdaContext):
         try:
             send_to_slack(message, SLACK_WEBHOOK_URL)
         except Exception as e:
-            print(f"Slack notification failed: {e}")
+            logger.exception(f"Slack notification failed: {e}")
             raise
 
 

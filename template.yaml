@@ -1256,16 +1256,6 @@ Resources:
             Type: Pass
             Next: SendNotification
             ResultPath: null
-            #Parameters:
-            #  - failed.$: "$[?(@.state==failed || @.state==needs_init || @.state==needs_sync)].table_name"
-            #  - failed_error_messages.$: "$[?(@.state=='failed')].error_message"
-            #  - failed_init.$: "$[?(@.state==needs_init)].table_name"
-            #  - failed_sync.$: "$[?(@.state==needs_sync)].table_name"
-            #  - complete_with_update.$: "$[?(@.state==complete_with_update)].table_name"
-            #  - complete.$: "$[?(@.state==complete)].table_name"
-            #  - num_failed.$: "States.ArrayLength($[?(@.state==failed || @.state==needs_init || @.state==needs_sync)].table_name)"
-            #  - num_complete_with_update.$: "States.ArrayLength($[?(@.state==complete_with_update)].table_name)"
-            #  - num_complete.$: "States.ArrayLength($[?(@.state==complete)].table_name)"
           SendNotification:
             Type: Task
             Resource: arn:aws:states:::sns:publish

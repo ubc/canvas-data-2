@@ -161,6 +161,11 @@ Parameters:
     Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
+  SlackWebHookURLSecretNameParameter:
+    Type: String
+    Description: The secret name for Slack Incoming Webhook URL for the notification
+    Default: ''
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -471,6 +476,8 @@ Resources:
           POWERTOOLS_SERVICE_NAME: list_tables
           LOG_LEVEL: !Ref LogLevel
           SKIP_TABLES: !Ref SkipTablesParameter
+          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
+          STACK_NAME: !Sub ${AWS::StackName}
       Timeout: 120
       MemorySize: 256
       VpcConfig:
@@ -480,6 +487,8 @@ Resources:
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
       Role: !GetAtt ListTablesRole.Arn
+      Layers:
+        - !Ref LambdaLayer
 
   ListTablesLogGroup:
     Type: AWS::Logs::LogGroup
@@ -515,6 +524,14 @@ Resources:
             - ssm:GetParametersByPath
             Resource:
             - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
+      - PolicyName: SecretsManagerPolicy
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -915,6 +932,59 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
+  SlackNotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-${EnvironmentParameter}-slack-notification
+      CodeUri: slack_notification/
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
+          AWS_ENVIRONMENT: !Sub ${EnvironmentParameter}
+          STACK_NAME: !Sub ${AWS::StackName}
+      Role: !GetAtt SlackNotificationFunctionRole.Arn
+      Events:
+        SnsTrigger:
+          Type: SNS
+          Properties:
+            Topic:
+              Fn::If:
+                - CreateNotificationTopic
+                - Ref: WorkflowNotificationTopic
+                - Fn::Sub: ${NotificationTopicParameter}
+      Layers:
+        - !Ref LambdaLayer
+
+  SlackNotificationFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: SlackNotificationFunctionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+
   StatesExecutionRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -1185,15 +1255,7 @@ Resources:
           PivotResults:
             Type: Pass
             Next: SendNotification
-            Parameters:
-              - failed.$: "$[?(@.state==failed || @.state==needs_init || @.state==needs_sync)].table_name"
-              - failed_init.$: "$[?(@.state==needs_init)].table_name"
-              - failed_sync.$: "$[?(@.state==needs_sync)].table_name"
-              - complete_with_update.$: "$[?(@.state==complete_with_update)].table_name"
-              - complete.$: "$[?(@.state==complete)].table_name"
-              - num_failed.$: "States.ArrayLength($[?(@.state==failed || @.state==needs_init || @.state==needs_sync)].table_name)"
-              - num_complete_with_update.$: "States.ArrayLength($[?(@.state==complete_with_update)].table_name)"
-              - num_complete.$: "States.ArrayLength($[?(@.state==complete)].table_name)"
+            ResultPath: null
           SendNotification:
             Type: Task
             Resource: arn:aws:states:::sns:publish
@@ -1359,6 +1421,15 @@ Resources:
       SecretId: !Ref DatabaseUserSecretAthena
       TargetId: !Ref AuroraDatabaseCluster
       TargetType: AWS::RDS::DBCluster
+
+  LambdaLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${AWS::StackName}
+      Description: Additional Python Libraries for CD2 Lambda functions.
+      ContentUri: lambda-layers
+      CompatibleRuntimes:
+        - python3.12
 
 Outputs:
   DatabaseAdminSecretArn:

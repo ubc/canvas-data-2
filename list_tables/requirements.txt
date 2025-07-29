@@ -1,3 +1,4 @@
 aws-lambda-powertools==2.43.1
 pysqlsync==0.8.2
 instructure-dap-client[postgresql]==1.0.0
+requests ~= 2.32.3

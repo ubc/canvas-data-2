@@ -1117,7 +1117,7 @@ Resources:
             Next: ProcessTables
           ProcessTables:
             Type: Map
-            MaxConcurrency: 30
+            MaxConcurrency: 15
             ItemsPath: "$.tables"
             Next: PivotResults
             ItemProcessor:

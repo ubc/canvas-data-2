@@ -1291,7 +1291,7 @@ Resources:
         LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
-        SecretNamePrefix: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
+        SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
         SecurityGroupIds: !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
@@ -1301,7 +1301,7 @@ Resources:
     Type: AWS::S3::Bucket
     Condition: CreateAthenaConnector
     Properties:
-      BucketName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-athena-spill-${AWS::AccountId}-${AWS::Region}
+      BucketName: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
@@ -1342,7 +1342,7 @@ Resources:
         - Effect: Allow
           Action:
           - secretsmanager:GetSecretValue
-          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena*
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup
@@ -1401,7 +1401,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Condition: CreateAthenaConnector
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
+      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "athena"}'

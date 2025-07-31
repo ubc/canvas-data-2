@@ -468,7 +468,7 @@ Resources:
         - x86_64
       Policies:
         - SSMParameterReadPolicy:
-            ParameterName: !Sub '${AWS::StackName}/${SsmPathParameter}*'
+            ParameterName: !Sub '${EnvironmentParameter}/${SsmPathParameter}*'
       Environment:
         Variables:
           ENV: !Ref EnvironmentParameter
@@ -640,7 +640,7 @@ Resources:
             - ssm:GetParameter
             - ssm:GetParametersByPath
             Resource:
-            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${AWS::StackName}/${SsmPathParameter}*
+            - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
             - !If [ConfigureFalconSensor, !Sub "arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter${FalconSensorOptionsParameter}*", !Ref "AWS::NoValue"]
       - PolicyName: secrets
         PolicyDocument:

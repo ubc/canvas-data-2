@@ -129,6 +129,11 @@ Parameters:
     Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
     Default: ''
 
+  DatabaseClientSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the DatabaseClient. Leave empty to create a new security group.
+    Default: ''
+
   ListTablesFunctionSecurityGroupParameter:
     Type: String
     Description: (Optional) A security group ID for the ListTables Lambda function. Leave empty to create a new security group.
@@ -185,6 +190,9 @@ Conditions:
   # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+
+  # Conditions for Bring Your Own Database Client Security Group
+  ExistingDatabaseClientSecurityGroup: !Not [!Equals [!Ref DatabaseClientSecurityGroupParameter, '']]
 
   # Conditions for Bring Your Own ListTables Lambda Function Security Group
   ExistingListTablesFunctionSecurityGroup: !Not [!Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']]
@@ -1147,7 +1155,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
@@ -1209,7 +1217,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB

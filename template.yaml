@@ -129,6 +129,11 @@ Parameters:
     Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
     Default: ''
 
+  ListTablesFunctionSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the ListTables Lambda function. Leave empty to create a new security group.
+    Default: ''
+
   AthenaConnectorParameter:
     Type: String
     Description: (Optional) Create an Athena connector for PostgreSQL. Default is false. Must be false when values are set for DatabaseAdminSecretArnParameter and DatabaseSecurityGroupParameter.
@@ -180,6 +185,10 @@ Conditions:
   # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+
+  # Conditions for Bring Your Own ListTables Lambda Function Security Group
+  ExistingListTablesFunctionSecurityGroup: !Not [!Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']]
+  CreateListTablesFunctionSecurityGroup: !Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']
 
   # Conditions for Bring Your Own Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
@@ -325,6 +334,7 @@ Resources:
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client
@@ -342,6 +352,7 @@ Resources:
 
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateListTablesFunctionSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 ListTablesFunction
@@ -388,7 +399,7 @@ Resources:
 
   DatabaseClientEgressToExistingDatabase:
     Type: AWS::EC2::SecurityGroupEgress
-    Condition: ExistingDatabaseSecurityGroup
+    Condition: CreateDatabaseSecurityGroup
     Properties:
       GroupId: !Ref DatabaseClientSecurityGroup
       IpProtocol: tcp
@@ -482,7 +493,7 @@ Resources:
       MemorySize: 256
       VpcConfig:
         SecurityGroupIds:
-          - !Ref ListTablesFunctionSecurityGroup
+          - !If [ExistingListTablesFunctionSecurityGroup, !Ref ListTablesFunctionSecurityGroupParameter, !Ref ListTablesFunctionSecurityGroup]
         SubnetIds: !Ref LambdaSubnetListParameter
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup

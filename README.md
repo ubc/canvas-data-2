@@ -31,6 +31,25 @@ It will be helpful to have a working knowledge of AWS services and the AWS Conso
 
 By default the database will not have a public IP address and will not be accessible outside of your VPC. You will need to configure network access to the database as appropriate for your situation.
 
+### If you want to use the existing RDS cluster
+
+If you want to use the existing RDS cluster, you need to create the following AWS resources:
+1. One parameter in the AWS System Manager Parameter Store for Canvas Data 2 DAP Client ID
+2. One parameter in the AWS System Manager Parameter Store for Canvas Data 2 DAP Client Secret
+
+You also need the following information:
+1. RDS Database Subnets where your existing RDS cluster is located.
+    - Parameter Name: `DatabaseSubnetListParameter`
+2. Database Admin user name for the existing RDS cluster
+    - Parameter Name: `DatabaseAdminUserParameter`
+3. The ARN of the RDS cluster
+    - Parameter Name: `DatabaseClusterArnParameter`
+4. The ARN of the Database Admin Secret
+    - Parameter Name: `DatabaseAdminUserParameter`
+5. Database Security Group Name (ex: sg-.....)
+    - Parameter Name: `DatabaseSecurityGroupParameter`
+
+
 ## Deploying the application
 
 The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
@@ -62,7 +81,7 @@ Deploying this application will create:
 - An Aurora Postgres cluster
 - A database user credential in AWS Secrets Manager.
 
-In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. A helper script is included that will take care of this setup. 
+In order for the application to use that credential to connect to the database, a database user must be created and granted appropriate privileges. A helper script is included that will take care of this setup.
 
 After deploying the SAM app, run this script. You must have valid AWS credentials before running the script.
 

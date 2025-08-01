@@ -129,6 +129,16 @@ Parameters:
     Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
     Default: ''
 
+  DatabaseClientSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the DatabaseClient. Leave empty to create a new security group.
+    Default: ''
+
+  ListTablesFunctionSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the ListTables Lambda function. Leave empty to create a new security group.
+    Default: ''
+
   AthenaConnectorParameter:
     Type: String
     Description: (Optional) Create an Athena connector for PostgreSQL. Default is false. Must be false when values are set for DatabaseAdminSecretArnParameter and DatabaseSecurityGroupParameter.
@@ -181,6 +191,14 @@ Conditions:
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
 
+  # Conditions for Bring Your Own Database Client Security Group
+  ExistingDatabaseClientSecurityGroup: !Not [!Equals [!Ref DatabaseClientSecurityGroupParameter, '']]
+  CreateDatabaseClientSecurityGroup: !Equals [!Ref DatabaseClientSecurityGroupParameter, '']
+
+  # Conditions for Bring Your Own ListTables Lambda Function Security Group
+  ExistingListTablesFunctionSecurityGroup: !Not [!Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']]
+  CreateListTablesFunctionSecurityGroup: !Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']
+
   # Conditions for Bring Your Own Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
   CreateNotificationTopic: !Equals [!Ref NotificationTopicParameter, '']
@@ -212,7 +230,7 @@ Resources:
   SecretsKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-secrets
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
@@ -240,7 +258,7 @@ Resources:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
           Resource: '*'
         - Sid: Allow grant creation permission for Fargate tasks.
           Effect: Allow
@@ -253,7 +271,7 @@ Resources:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
             ForAllValues:StringEquals:
               "kms:GrantOperations":
                 - "Decrypt"
@@ -287,14 +305,14 @@ Resources:
   DataKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-data
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-data
       TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
+      Name: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
@@ -325,6 +343,7 @@ Resources:
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateDatabaseClientSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client
@@ -342,6 +361,7 @@ Resources:
 
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateListTablesFunctionSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 ListTablesFunction
@@ -368,7 +388,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
+          SourceSecurityGroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
         # TODO: add more ingress rules based on parameter(s)
       Tags:
         - Key: Name
@@ -380,7 +400,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Condition: CreateDatabaseSecurityGroup
     Properties:
-      GroupId: !Ref DatabaseClientSecurityGroup
+      GroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
       IpProtocol: tcp
       FromPort: 5432
       ToPort: 5432
@@ -388,9 +408,9 @@ Resources:
 
   DatabaseClientEgressToExistingDatabase:
     Type: AWS::EC2::SecurityGroupEgress
-    Condition: ExistingDatabaseSecurityGroup
+    Condition: CreateDatabaseSecurityGroup
     Properties:
-      GroupId: !Ref DatabaseClientSecurityGroup
+      GroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
       IpProtocol: tcp
       FromPort: 5432
       ToPort: 5432
@@ -482,7 +502,7 @@ Resources:
       MemorySize: 256
       VpcConfig:
         SecurityGroupIds:
-          - !Ref ListTablesFunctionSecurityGroup
+          - !If [ExistingListTablesFunctionSecurityGroup, !Ref ListTablesFunctionSecurityGroupParameter, !Ref ListTablesFunctionSecurityGroup]
         SubnetIds: !Ref LambdaSubnetListParameter
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
@@ -551,7 +571,7 @@ Resources:
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+      ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
           FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
@@ -927,7 +947,7 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: CreateNotificationTopic
     Properties:
-      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${AWS::StackName} - ${EnvironmentParameter})"
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1136,7 +1156,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
@@ -1198,7 +1218,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
@@ -1284,7 +1304,7 @@ Resources:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
         DefaultConnectionString: !Sub |
-          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'
@@ -1292,7 +1312,8 @@ Resources:
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
         SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
-        SecurityGroupIds: !Ref DatabaseClientSecurityGroup
+        SecurityGroupIds:
+          - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]

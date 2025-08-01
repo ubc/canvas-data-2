@@ -193,6 +193,7 @@ Conditions:
 
   # Conditions for Bring Your Own Database Client Security Group
   ExistingDatabaseClientSecurityGroup: !Not [!Equals [!Ref DatabaseClientSecurityGroupParameter, '']]
+  CreateDatabaseClientSecurityGroup: !Equals [!Ref DatabaseClientSecurityGroupParameter, '']
 
   # Conditions for Bring Your Own ListTables Lambda Function Security Group
   ExistingListTablesFunctionSecurityGroup: !Not [!Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']]
@@ -342,7 +343,7 @@ Resources:
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
-    Condition: CreateDatabaseSecurityGroup
+    Condition: CreateDatabaseClientSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client

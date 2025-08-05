@@ -334,6 +334,7 @@ Resources:
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    Condition: CreateDatabase
     Properties:
       DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
@@ -408,7 +409,7 @@ Resources:
 
   DatabaseClientEgressToExistingDatabase:
     Type: AWS::EC2::SecurityGroupEgress
-    Condition: CreateDatabaseSecurityGroup
+    Condition: CreateDatabaseClientSecurityGroup
     Properties:
       GroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
       IpProtocol: tcp

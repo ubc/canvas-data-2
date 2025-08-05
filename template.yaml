@@ -1312,8 +1312,10 @@ Resources:
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
         SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
-        SecurityGroupIds:
-          - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
+        SecurityGroupIds: !If
+          - ExistingDatabaseClientSecurityGroup
+          - !Ref DatabaseClientSecurityGroupParameter
+          - !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]

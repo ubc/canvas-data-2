@@ -176,6 +176,26 @@ Parameters:
     Description: The secret name for Slack Incoming Webhook URL for the notification
     Default: ''
 
+  SecretsKmsKeyIDParameter:
+    Type: String
+    Description: (Optional) The key ID for existing SecretsKmsKey. Leave empty to create a new KMS key.
+    Default: ''
+
+  SecretsKmsKeyArnParameter:
+    Type: String
+    Description: (Optional) The ARN for existing SecretsKmsKey. Leave empty to create a new KMS key.
+    Default: arn:aws:kms:region:123456789123:key:placeholder
+
+  DataKmsKeyIDParameter:
+    Type: String
+    Description: (Optional) The Key ID for DataKmsKey. Leave empty to create a new KMS key.
+    Default: ''
+
+  DataKmsKeyArnParameter:
+    Type: String
+    Description: (Optional) The ARN for existing DataKmsKey. Leave empty to create a new KMS key.
+    Default: arn:aws:kms:region:123456789123:key:placeholder
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -220,6 +240,7 @@ Resources:
 
   SecretsKmsKey:
     Type: AWS::KMS::Key
+    Condition: CreateDatabase
     Properties:
       Description: Key for encrypting Canvas Data 2 secrets
       Enabled: true
@@ -229,12 +250,14 @@ Resources:
 
   SecretsKeyAlias:
     Type: AWS::KMS::Alias
+    Condition: CreateDatabase
     Properties:
       AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
     Type: AWS::KMS::Key
+    Condition: CreateDatabase
     Properties:
       Description: Key for encrypting Canvas Data 2 data
       Enabled: true
@@ -304,6 +327,7 @@ Resources:
 
   DataKeyAlias:
     Type: AWS::KMS::Alias
+    Condition: CreateDatabase
     Properties:
       AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-data
       TargetKeyId: !Ref DataKmsKey
@@ -319,7 +343,7 @@ Resources:
         GenerateStringKey: password
         PasswordLength: 24
         ExcludePunctuation: true
-      KmsKeyId: !Ref SecretsKmsKey
+      KmsKeyId: !If [CreateDatabase, !Ref SecretsKmsKey, !Ref SecretsKmsKeyIDParameter]
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -575,7 +599,7 @@ Resources:
       ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
-          FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
+          FargateEphemeralStorageKmsKeyId: !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -614,7 +638,7 @@ Resources:
                 Action:
                   - kms:*
                 Resource:
-                  - !GetAtt DataKmsKey.Arn
+                  - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
         - !If
           - ConfigureFalconSensor
           - PolicyName: falcon_parameter_store
@@ -678,7 +702,7 @@ Resources:
           - Effect: Allow
             Action:
             - kms:Decrypt
-            Resource: !GetAtt SecretsKmsKey.Arn
+            Resource: !If [CreateDatabase, !GetAtt SecretsKmsKey.Arn, !Ref SecretsKmsKeyArnParameter]
       - PolicyName: ecr
         PolicyDocument:
           Statement:
@@ -719,7 +743,7 @@ Resources:
               Action:
                 - kms:*
               Resource:
-                - !GetAtt DataKmsKey.Arn
+                - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'

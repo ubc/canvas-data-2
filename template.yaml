@@ -1129,6 +1129,7 @@ Resources:
           Type: ScheduleV2
           Properties:
             Description: Execute the Canvas Data 2 Step Function every 3 hours
+            Name: !Sub ${AWS::StackName}-CD2-Refresh-schedule
             FlexibleTimeWindow:
               Mode: FLEXIBLE
               MaximumWindowInMinutes: 10

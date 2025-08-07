@@ -270,8 +270,10 @@ Resources:
             StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
+            ForAnyValue:StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterName":
                 - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-ubcla-canvas-data-2-catalog-cd2-cluster
           Resource: '*'
         - Sid: Allow grant creation permission for Fargate tasks.
           Effect: Allow
@@ -283,8 +285,10 @@ Resources:
             StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
+            ForAnyValue:StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterName":
                 - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-ubcla-canvas-data-2-catalog-cd2-cluster
             ForAllValues:StringEquals:
               "kms:GrantOperations":
                 - "Decrypt"

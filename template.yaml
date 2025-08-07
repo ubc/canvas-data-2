@@ -181,20 +181,10 @@ Parameters:
     Description: (Optional) The key ID for existing SecretsKmsKey. Leave empty to create a new KMS key.
     Default: ''
 
-  SecretsKmsKeyArnParameter:
-    Type: String
-    Description: (Optional) The ARN for existing SecretsKmsKey. Leave empty to create a new KMS key.
-    Default: arn:aws:kms:region:123456789123:key:placeholder
-
   DataKmsKeyIDParameter:
     Type: String
     Description: (Optional) The Key ID for DataKmsKey. Leave empty to create a new KMS key.
     Default: ''
-
-  DataKmsKeyArnParameter:
-    Type: String
-    Description: (Optional) The ARN for existing DataKmsKey. Leave empty to create a new KMS key.
-    Default: arn:aws:kms:region:123456789123:key:placeholder
 
 Conditions:
 
@@ -599,7 +589,7 @@ Resources:
       ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
-          FargateEphemeralStorageKmsKeyId: !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
+          FargateEphemeralStorageKmsKeyId: !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -638,7 +628,7 @@ Resources:
                 Action:
                   - kms:*
                 Resource:
-                  - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
+                  - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
         - !If
           - ConfigureFalconSensor
           - PolicyName: falcon_parameter_store
@@ -702,7 +692,7 @@ Resources:
           - Effect: Allow
             Action:
             - kms:Decrypt
-            Resource: !If [CreateDatabase, !GetAtt SecretsKmsKey.Arn, !Ref SecretsKmsKeyArnParameter]
+            Resource: !If [CreateDatabase, !GetAtt SecretsKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${SecretsKmsKeyIDParameter}"]
       - PolicyName: ecr
         PolicyDocument:
           Statement:
@@ -743,7 +733,7 @@ Resources:
               Action:
                 - kms:*
               Resource:
-                - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Ref DataKmsKeyArnParameter]
+                - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'

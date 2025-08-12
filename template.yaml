@@ -518,6 +518,7 @@ Resources:
           SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
           STACK_NAME: !Sub ${AWS::StackName}
           SSM_PARAMETER_NAME: !Sub ${SsmPathParameter}
+          DB_CD2_USER: !Sub ${DatabaseCd2UserParameter}
       Timeout: 120
       MemorySize: 256
       VpcConfig:

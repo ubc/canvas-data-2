@@ -517,6 +517,7 @@ Resources:
           SKIP_TABLES: !Ref SkipTablesParameter
           SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
           STACK_NAME: !Sub ${AWS::StackName}
+          SSM_PARAMETER_NAME: !Sub ${SsmPathParameter}
       Timeout: 120
       MemorySize: 256
       VpcConfig:
@@ -1202,6 +1203,8 @@ Resources:
                           Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
                         - Name: DB_CLUSTER_ARN
                           Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
+                        - Name: SSM_PARAMETER_NAME
+                          Value: !Sub ${SsmPathParameter}
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1260,6 +1263,8 @@ Resources:
                           Value: init_table
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
+                        - Name: SSM_PARAMETER_NAME
+                          Value: !Sub ${SsmPathParameter}
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:

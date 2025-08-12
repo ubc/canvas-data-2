@@ -17,8 +17,9 @@ ssm_provider = parameters.SSMProvider(config=config)
 logger = Logger()
 
 env = os.environ.get('ENV', 'dev')
+ssm_parameter_name = os.environ.get('SSM_PARAMETER_NAME', 'canvas_data_2')
 
-param_path = f'/{env}/canvas_data_2'
+param_path = f'/{env}/{ssm_parameter_name}'
 
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 

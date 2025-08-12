@@ -186,6 +186,11 @@ Parameters:
     Description: (Optional) The Key ID for DataKmsKey. Leave empty to create a new KMS key.
     Default: ''
 
+  MainCD2StackNameParameter:
+    Type: String
+    Description: (Optional) The Cloudformation stack name of the main Canvas Data 2 Stack.
+    Default: 'ubcla-canvas-data-2'
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -776,7 +781,11 @@ Resources:
         - Name: !Sub ${AWS::StackName}-InitTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:${EnvironmentParameter}
+          Image:
+            Fn::If:
+              - CreateDatabase
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:${EnvironmentParameter}
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${MainCD2StackNameParameter}/init-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -880,7 +889,11 @@ Resources:
         - Name: !Sub ${AWS::StackName}-SyncTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:${EnvironmentParameter}
+          Image:
+            Fn::If:
+              - CreateDatabase
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:${EnvironmentParameter}
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${MainCD2StackNameParameter}/sync-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs

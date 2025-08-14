@@ -90,6 +90,16 @@ pip install setup/requirements.txt -r
 ./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
 ```
 
+#### (Optional) If you are creating a new database user and schema for an additional Canvas instance:
+If you create a new cloudformation stack for an additional Canvas instance, you need to modify `secret_name_prefix` so that it can target the correct secrets for the RDS database credential for the new DB user.
+
+When you run the `prepare_aurora_db.py` script, add `--is-additional-stack` argument.
+
+```
+pip install setup/requirements.txt -r
+./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment> --is-additional-stack
+```
+
 Occasionally the schema for a CD2 table will change. The DAP library will take care of applying these changes to the database, but they will not succeed if you have created views that depend on the table. To handle this situation, the `sync_table` Lambda function will attempt to drop and recreate any views that depend on the table being synced. The pgsql functions necessary to do this can be found in this repository: https://github.com/rvkulikov/pg-deps-management. You will need to run the `ddl.sql` script in your database to create the necessary functions. (details tbd)
 
 ## Configuration

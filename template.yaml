@@ -335,7 +335,7 @@ Resources:
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
+      Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
@@ -1405,8 +1405,8 @@ Resources:
           Action:
           - secretsmanager:GetSecretValue
           Resource:
-            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena*
-            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-catalog-cd2-db-user-${EnvironmentParameter}-athena*
+            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena*
+            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-catalog-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup

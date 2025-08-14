@@ -1404,9 +1404,7 @@ Resources:
         - Effect: Allow
           Action:
           - secretsmanager:GetSecretValue
-          Resource:
-            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena*
-            - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-catalog-cd2-db-user-${EnvironmentParameter}-athena*
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup

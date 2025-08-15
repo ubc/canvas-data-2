@@ -129,6 +129,16 @@ Parameters:
     Description: (Optional) A security group ID for the database. Leave empty to create a new security group.
     Default: ''
 
+  DatabaseClientSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the DatabaseClient. Leave empty to create a new security group.
+    Default: ''
+
+  ListTablesFunctionSecurityGroupParameter:
+    Type: String
+    Description: (Optional) A security group ID for the ListTables Lambda function. Leave empty to create a new security group.
+    Default: ''
+
   AthenaConnectorParameter:
     Type: String
     Description: (Optional) Create an Athena connector for PostgreSQL. Default is false. Must be false when values are set for DatabaseAdminSecretArnParameter and DatabaseSecurityGroupParameter.
@@ -166,6 +176,21 @@ Parameters:
     Description: The secret name for Slack Incoming Webhook URL for the notification
     Default: ''
 
+  SecretsKmsKeyIDParameter:
+    Type: String
+    Description: (Optional) The key ID for existing SecretsKmsKey. Leave empty to create a new KMS key.
+    Default: ''
+
+  DataKmsKeyIDParameter:
+    Type: String
+    Description: (Optional) The Key ID for DataKmsKey. Leave empty to create a new KMS key.
+    Default: ''
+
+  MainCD2StackNameParameter:
+    Type: String
+    Description: (Optional) The Cloudformation stack name of the main Canvas Data 2 Stack.
+    Default: 'ubcla-canvas-data-2'
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -180,6 +205,14 @@ Conditions:
   # Conditions for Bring Your Own Data Security Group
   ExistingDatabaseSecurityGroup: !Not [!Equals [!Ref DatabaseSecurityGroupParameter, '']]
   CreateDatabaseSecurityGroup: !Equals [!Ref DatabaseSecurityGroupParameter, '']
+
+  # Conditions for Bring Your Own Database Client Security Group
+  ExistingDatabaseClientSecurityGroup: !Not [!Equals [!Ref DatabaseClientSecurityGroupParameter, '']]
+  CreateDatabaseClientSecurityGroup: !Equals [!Ref DatabaseClientSecurityGroupParameter, '']
+
+  # Conditions for Bring Your Own ListTables Lambda Function Security Group
+  ExistingListTablesFunctionSecurityGroup: !Not [!Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']]
+  CreateListTablesFunctionSecurityGroup: !Equals [!Ref ListTablesFunctionSecurityGroupParameter, '']
 
   # Conditions for Bring Your Own Notification Topic
   ExistingNotificationTopic: !Not [!Equals [!Ref NotificationTopicParameter, '']]
@@ -202,6 +235,7 @@ Resources:
 
   SecretsKmsKey:
     Type: AWS::KMS::Key
+    Condition: CreateDatabase
     Properties:
       Description: Key for encrypting Canvas Data 2 secrets
       Enabled: true
@@ -211,12 +245,14 @@ Resources:
 
   SecretsKeyAlias:
     Type: AWS::KMS::Alias
+    Condition: CreateDatabase
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-secrets
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
     Type: AWS::KMS::Key
+    Condition: CreateDatabase
     Properties:
       Description: Key for encrypting Canvas Data 2 data
       Enabled: true
@@ -239,8 +275,10 @@ Resources:
             StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
+            ForAnyValue:StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-ubcla-canvas-data-2-catalog-cd2-cluster
           Resource: '*'
         - Sid: Allow grant creation permission for Fargate tasks.
           Effect: Allow
@@ -252,8 +290,10 @@ Resources:
             StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterAccount":
                 - !Sub ${AWS::AccountId}
+            ForAnyValue:StringEquals:
               "kms:EncryptionContext:aws:ecs:clusterName":
-                - !Sub ${ResourcePrefixParameter}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
+                - !Sub ${ResourcePrefixParameter}-ubcla-canvas-data-2-catalog-cd2-cluster
             ForAllValues:StringEquals:
               "kms:GrantOperations":
                 - "Decrypt"
@@ -286,22 +326,23 @@ Resources:
 
   DataKeyAlias:
     Type: AWS::KMS::Alias
+    Condition: CreateDatabase
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-cd2-data
+      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-data
       TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
   DatabaseUserSecretCanvas:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
+      Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-${DatabaseCd2UserParameter}
       Description: Database user for Canvas Data 2 canvas user
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "${DatabaseCd2UserParameter}"}'
         GenerateStringKey: password
         PasswordLength: 24
         ExcludePunctuation: true
-      KmsKeyId: !Ref SecretsKmsKey
+      KmsKeyId: !If [CreateDatabase, !Ref SecretsKmsKey, !Ref SecretsKmsKeyIDParameter]
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -316,6 +357,7 @@ Resources:
 
   DatabaseSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    Condition: CreateDatabase
     Properties:
       DBSubnetGroupDescription: !Sub ${ResourcePrefixParameter}-cd2-subnetgroup-${EnvironmentParameter}
       SubnetIds: !Ref DatabaseSubnetListParameter
@@ -325,6 +367,7 @@ Resources:
 
   DatabaseClientSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateDatabaseClientSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-database-client-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 Database Client
@@ -342,6 +385,7 @@ Resources:
 
   ListTablesFunctionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    Condition: CreateListTablesFunctionSecurityGroup
     Properties:
       GroupDescription: !Sub ${ResourcePrefixParameter}-cd2-list-tables-function-sg-${EnvironmentParameter}
       GroupName: Canvas Data 2 ListTablesFunction
@@ -368,7 +412,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 5432
           ToPort: 5432
-          SourceSecurityGroupId: !Ref DatabaseClientSecurityGroup
+          SourceSecurityGroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
         # TODO: add more ingress rules based on parameter(s)
       Tags:
         - Key: Name
@@ -380,7 +424,7 @@ Resources:
     Type: AWS::EC2::SecurityGroupEgress
     Condition: CreateDatabaseSecurityGroup
     Properties:
-      GroupId: !Ref DatabaseClientSecurityGroup
+      GroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
       IpProtocol: tcp
       FromPort: 5432
       ToPort: 5432
@@ -388,9 +432,9 @@ Resources:
 
   DatabaseClientEgressToExistingDatabase:
     Type: AWS::EC2::SecurityGroupEgress
-    Condition: ExistingDatabaseSecurityGroup
+    Condition: CreateDatabaseClientSecurityGroup
     Properties:
-      GroupId: !Ref DatabaseClientSecurityGroup
+      GroupId: !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
       IpProtocol: tcp
       FromPort: 5432
       ToPort: 5432
@@ -478,11 +522,13 @@ Resources:
           SKIP_TABLES: !Ref SkipTablesParameter
           SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
           STACK_NAME: !Sub ${AWS::StackName}
+          SSM_PARAMETER_NAME: !Sub ${SsmPathParameter}
+          DB_CD2_USER: !Sub ${DatabaseCd2UserParameter}
       Timeout: 120
       MemorySize: 256
       VpcConfig:
         SecurityGroupIds:
-          - !Ref ListTablesFunctionSecurityGroup
+          - !If [ExistingListTablesFunctionSecurityGroup, !Ref ListTablesFunctionSecurityGroupParameter, !Ref ListTablesFunctionSecurityGroup]
         SubnetIds: !Ref LambdaSubnetListParameter
       LoggingConfig:
         LogGroup: !Ref ListTablesLogGroup
@@ -551,10 +597,10 @@ Resources:
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub ${ResourcePrefixParameter}-cd2-cluster
+      ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
-          FargateEphemeralStorageKmsKeyId: !GetAtt DataKmsKey.Arn
+          FargateEphemeralStorageKmsKeyId: !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -593,7 +639,7 @@ Resources:
                 Action:
                   - kms:*
                 Resource:
-                  - !GetAtt DataKmsKey.Arn
+                  - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
         - !If
           - ConfigureFalconSensor
           - PolicyName: falcon_parameter_store
@@ -657,7 +703,7 @@ Resources:
           - Effect: Allow
             Action:
             - kms:Decrypt
-            Resource: !GetAtt SecretsKmsKey.Arn
+            Resource: !If [CreateDatabase, !GetAtt SecretsKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${SecretsKmsKeyIDParameter}"]
       - PolicyName: ecr
         PolicyDocument:
           Statement:
@@ -698,7 +744,7 @@ Resources:
               Action:
                 - kms:*
               Resource:
-                - !GetAtt DataKmsKey.Arn
+                - !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -735,7 +781,11 @@ Resources:
         - Name: !Sub ${AWS::StackName}-InitTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:${EnvironmentParameter}
+          Image:
+            Fn::If:
+              - CreateDatabase
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/init-table:${EnvironmentParameter}
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${MainCD2StackNameParameter}/init-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -839,7 +889,11 @@ Resources:
         - Name: !Sub ${AWS::StackName}-SyncTable
           Cpu: !Ref TaskCpuParameter
           Memory: !Ref TaskMemoryParameter
-          Image: !Sub ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:${EnvironmentParameter}
+          Image:
+            Fn::If:
+              - CreateDatabase
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${AWS::StackName}/sync-table:${EnvironmentParameter}
+              - Fn::Sub: ${EcrAccountNumberParameter}.dkr.ecr.${AWS::Region}.amazonaws.com/${MainCD2StackNameParameter}/sync-table:${EnvironmentParameter}
           Essential: true
           LogConfiguration:
             LogDriver: awslogs
@@ -927,7 +981,7 @@ Resources:
     Type: AWS::SNS::Topic
     Condition: CreateNotificationTopic
     Properties:
-      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${EnvironmentParameter})"
+      DisplayName: !Sub "Canvas Data 2 Synchronization Workflow (${AWS::StackName} - ${EnvironmentParameter})"
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1090,6 +1144,7 @@ Resources:
           Type: ScheduleV2
           Properties:
             Description: Execute the Canvas Data 2 Step Function every 3 hours
+            Name: !Sub ${AWS::StackName}-CD2-Refresh-schedule
             FlexibleTimeWindow:
               Mode: FLEXIBLE
               MaximumWindowInMinutes: 10
@@ -1136,7 +1191,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
@@ -1162,6 +1217,8 @@ Resources:
                           Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
                         - Name: DB_CLUSTER_ARN
                           Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
+                        - Name: SSM_PARAMETER_NAME
+                          Value: !Sub ${SsmPathParameter}
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1198,7 +1255,7 @@ Resources:
                       AwsvpcConfiguration:
                         AssignPublicIp: DISABLED
                         SecurityGroups:
-                        - !Ref DatabaseClientSecurityGroup
+                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
                         Subnets:
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
                         - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
@@ -1220,6 +1277,8 @@ Resources:
                           Value: init_table
                         - Name: DB_USER_SECRET_NAME
                           Value: !Ref DatabaseUserSecretCanvas
+                        - Name: SSM_PARAMETER_NAME
+                          Value: !Sub ${SsmPathParameter}
                   TimeoutSeconds: 43200
                   Retry:
                     - ErrorEquals:
@@ -1292,7 +1351,10 @@ Resources:
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
         SecretNamePrefix: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-canvas
-        SecurityGroupIds: !Ref DatabaseClientSecurityGroup
+        SecurityGroupIds: !If
+          - ExistingDatabaseClientSecurityGroup
+          - !Ref DatabaseClientSecurityGroupParameter
+          - !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]

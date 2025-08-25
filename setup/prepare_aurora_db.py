@@ -151,7 +151,6 @@ def grant_access_permission_on_instructure_dap_schema_to_db_user(username, datab
 
         for tablename in tables:
             grant_access_permission_sql = f"GRANT INSERT, SELECT, UPDATE, DELETE ON instructure_dap.{tablename} TO {username}"
-            print(f"grant_access_permission_sql: {grant_access_permission_sql}")
             execute_statement(grant_access_permission_sql, database_name)
             console.print(f" - Granted SELECT, INSERT, UPDATE, and DELETE permission on the schema instructure_dap to user {username}", style="bold green")
     except ClientError as e:

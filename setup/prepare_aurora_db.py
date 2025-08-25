@@ -12,6 +12,12 @@ parser.add_argument(
     help="The name of the Canvas Data 2 CloudFormation stack containing the Aurora database",
     required=True,
 )
+parser.add_argument(
+    "--is-additional-stack",
+    help="Whether this is for the DB changes for the additional CD2 stack",
+    action="store_true",   # If specified, sets the value as True
+    default=False          # Default is False when not passed
+)
 args = parser.parse_args()
 
 console = Console()
@@ -21,6 +27,8 @@ secrets_client = boto3.client("secretsmanager")
 rds_data_client = boto3.client("rds-data")
 cf_resource = boto3.resource("cloudformation")
 stack = cf_resource.Stack(args.stack_name)
+
+is_additional_stack = args.is_additional_stack
 
 console.print("Starting database preparation", style="bold green")
 
@@ -91,7 +99,7 @@ def create_user(username, password, database_name):
 def create_schema(schema_name, username, database_name):
     """Create a schema with user as owner"""
     try:
-        create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {username} AUTHORIZATION {username}"
+        create_schema_sql = f"CREATE SCHEMA IF NOT EXISTS {schema_name} AUTHORIZATION {username}"
         execute_statement(create_schema_sql, database_name)
         console.print(f" - Created schema {schema_name} with owner {username}", style="bold green")
     except ClientError as e:
@@ -127,6 +135,27 @@ def grant_user_to_admin(username, admin_username, database_name):
     except ClientError as e:
         console.print(f" ! Error granting user {username} to user {admin_username}: {e}", style="bold red")
 
+def grant_create_permission_on_db_to_db_user(username, database_name):
+    """Grant CREATE permission on the database to the DB user"""
+    try:
+        grant_create_permission_sql = f"GRANT CREATE ON DATABASE {database_name} TO {username}"
+        execute_statement(grant_create_permission_sql, database_name)
+        console.print(f" - Granted CREATE permission on the database {database_name} to user {username}", style="bold green")
+    except ClientError as e:
+        console.print(f" ! Error granting CREATE permission on the database {database_name} to user {username}: {e}", style="bold red")
+
+def grant_access_permission_on_instructure_dap_schema_to_db_user(username, database_name):
+    """Grant SELECT, INSERT, UPDATE, DELETE permissions on the instructure_dap schema to the DB user"""
+    try:
+        tables = ["database_version", "table_sync"]
+
+        for tablename in tables:
+            grant_access_permission_sql = f"GRANT INSERT, SELECT, UPDATE, DELETE ON instructure_dap.{tablename} TO {username}"
+            execute_statement(grant_access_permission_sql, database_name)
+            console.print(f" - Granted SELECT, INSERT, UPDATE, and DELETE permission on the schema instructure_dap to user {username}", style="bold green")
+    except ClientError as e:
+        console.print(f" ! Error granting SELECT, INSERT, UPDATE, and DELETE permission on the schema instructure_dap to user {username}: {e}", style="bold red")
+
 # Get all database user secrets
 secret_name_prefix = f"{prefix}-cd2-db-user-{env}-"
 user_secrets = secrets_client.list_secrets(
@@ -140,17 +169,17 @@ for s in user_secrets["SecretList"]:
     secret_value = json.loads(secrets_client.get_secret_value(SecretId=secret_arn)["SecretString"])
     username = secret_value["username"]
     database_name = secret_value["dbname"]
-    
+
     # Create or update the user
     create_user(username, secret_value["password"], database_name)
-    
+
     # Grant user to admin user
     grant_user_to_admin(username, admin_username, database_name)
-    
+
     # Create schema for user (with them as owner) if they need a schema
     if username in users_to_create_schema:
         create_schema(username, username, database_name)
-    
+
     # Create instructure_dap schema for the CD2 database user with them as owner
     if username == db_user_username:
         create_schema("instructure_dap", username, database_name)
@@ -158,9 +187,16 @@ for s in user_secrets["SecretList"]:
     # Assign privileges to canvas and instructure_dap schemas
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
-    
-    grant_usage_to_schema(username, "canvas", database_name)
-    assign_privileges(username, "canvas", user_role, database_name)
-    
+
+    grant_usage_to_schema(username, username, database_name)
+    assign_privileges(username, username, user_role, database_name)
+
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)
+
+    # Grant the CREATE privilege on the cd2 database.
+    grant_create_permission_on_db_to_db_user(username, database_name)
+
+    # If this is for the new additional stack, grant the access permission to the instructure_dap schema.
+    if is_additional_stack:
+        grant_access_permission_on_instructure_dap_schema_to_db_user(username, database_name)

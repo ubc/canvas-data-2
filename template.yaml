@@ -247,7 +247,7 @@ Resources:
     Type: AWS::KMS::Alias
     Condition: CreateDatabase
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-secrets
+      AliasName: !Sub alias/${AWS::StackName}-cd2-secrets
       TargetKeyId: !Ref SecretsKmsKey
 
   DataKmsKey:
@@ -328,7 +328,7 @@ Resources:
     Type: AWS::KMS::Alias
     Condition: CreateDatabase
     Properties:
-      AliasName: !Sub alias/${ResourcePrefixParameter}-${AWS::StackName}-cd2-data
+      AliasName: !Sub alias/${AWS::StackName}-cd2-data
       TargetKeyId: !Ref DataKmsKey
 
   # Create a secret for the CD2 app "canvas" user
@@ -597,7 +597,7 @@ Resources:
   FargateCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub ${ResourcePrefixParameter}-${AWS::StackName}-cd2-cluster
+      ClusterName: !Sub ${AWS::StackName}-cd2-cluster
       Configuration:
         ManagedStorageConfiguration:
           FargateEphemeralStorageKmsKeyId: !If [CreateDatabase, !GetAtt DataKmsKey.Arn, !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/${DataKmsKeyIDParameter}"]

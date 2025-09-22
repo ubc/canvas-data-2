@@ -1463,7 +1463,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Condition: CreateAthenaConnector
     Properties:
-      Name: !Sub ${ResourcePrefixParameter}-cd2-db-user-${EnvironmentParameter}-athena
+      Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "athena"}'

@@ -29,7 +29,8 @@ env = os.environ.get("ENV", "dev")
 db_cluster_arn = os.environ.get("DB_CLUSTER_ARN")
 db_user_secret_name = os.environ.get("DB_USER_SECRET_NAME")
 admin_secret_arn = os.environ.get("ADMIN_SECRET_ARN")
-param_path = f"/{env}/canvas_data_2"
+ssm_parameter_name = os.environ.get('SSM_PARAMETER_NAME', 'canvas_data_2')
+param_path = f"/{env}/{ssm_parameter_name}"
 api_base_url = os.environ.get("API_BASE_URL", "https://api-gateway.instructure.com")
 
 FUNCTION_NAME = 'sync_table'

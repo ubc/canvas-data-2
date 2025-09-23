@@ -157,7 +157,7 @@ def grant_access_permission_on_instructure_dap_schema_to_db_user(username, datab
         console.print(f" ! Error granting SELECT, INSERT, UPDATE, and DELETE permission on the schema instructure_dap to user {username}: {e}", style="bold red")
 
 # Get all database user secrets
-secret_name_prefix = f"{prefix}-cd2-db-user-{env}-"
+secret_name_prefix = f"{stack.name}-cd2-db-user-{env}-"
 user_secrets = secrets_client.list_secrets(
     Filters=[{"Key": "name", "Values": [secret_name_prefix]}],
     MaxResults=100,

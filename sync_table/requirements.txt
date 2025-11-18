@@ -6,5 +6,4 @@ requests ~= 2.32.3
 aiohttp==3.12.15
 frozenlist==1.7.0
 multidict==6.6.4
-propcache==0.3.2
 json_strong_typing==0.4.0

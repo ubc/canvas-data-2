@@ -3,5 +3,3 @@ pysqlsync==0.8.2
 instructure-dap-client[postgresql]==1.4.0
 boto3==1.34.144
 requests ~= 2.32.3
-referencing==0.36.2
-rpds-py==0.27.1

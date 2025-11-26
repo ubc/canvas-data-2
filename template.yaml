@@ -191,6 +191,12 @@ Parameters:
     Description: (Optional) The Cloudformation stack name of the main Canvas Data 2 Stack.
     Default: 'ubcla-canvas-data-2'
 
+  EnableCatalogNamespaceParameter:
+    Type: String
+    Description: Boolean value to indicate whether to import the data for the Catalog Namespace.
+    AllowedValues: ["true", "false"]
+    Default: "false"
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -1151,177 +1157,220 @@ Resources:
             ScheduleExpression: rate(3 hours)
             State: ENABLED
       Definition:
-        StartAt: ListTables
+        StartAt: StartNamespaces
         States:
-          ListTables:
-            Type: Task
-            Resource: arn:aws:states:::lambda:invoke
-            OutputPath: "$.Payload"
-            Parameters:
-              Payload.$: "$"
-              FunctionName: !Ref ListTablesFunction
-            Retry:
-              - ErrorEquals:
-                 - Lambda.ServiceException
-                 - Lambda.AWSLambdaException
-                 - Lambda.SdkClientException
-                 - Lambda.TooManyRequestsException
-                IntervalSeconds: 2
-                MaxAttempts: 6
-                BackoffRate: 6
-            Next: ProcessTables
-          ProcessTables:
+          StartNamespaces:
+            Type: Pass
+            Next: ProcessNamespaces
+            Result:
+              - namespace: canvas
+                enableUpdate: true # Always run for 'canvas'
+              - namespace: catalog
+                enableUpdate: !Ref EnableCatalogNamespaceParameter # Read from a CloudFormation Parameter
+
+          ProcessNamespaces:
             Type: Map
-            MaxConcurrency: 15
-            ItemsPath: "$.tables"
-            Next: PivotResults
+            MaxConcurrency: 0 # Run all items (namespaces) concurrently
+            ItemsPath: "$" # Iterate over the input array from StartNamespaces
+            Next: EndSuccess
             ItemProcessor:
               ProcessorConfig:
                 Mode: INLINE
-              StartAt: SyncTable
+              StartAt: CheckCatalogUpdate
               States:
-                SyncTable:
-                  Type: Task
-                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
-                  Parameters:
-                    LaunchType: FARGATE
-                    Cluster: !Ref FargateCluster
-                    TaskDefinition: !Ref SyncTableTaskDefinition
-                    NetworkConfiguration:
-                      AwsvpcConfiguration:
-                        AssignPublicIp: DISABLED
-                        SecurityGroups:
-                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
-                        Subnets:
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-                    Overrides:
-                      ContainerOverrides:
-                      - Name: !Sub ${AWS::StackName}-SyncTable
-                        Environment:
-                        - Name: TASK_TOKEN
-                          Value.$: $$.Task.Token
-                        - Name: TABLE_NAME
-                          Value.$: States.JsonToString($)
-                        - Name: ENV
-                          Value: !Ref EnvironmentParameter
-                        - Name: LOG_LEVEL
-                          Value: !Ref LogLevel
-                        - Name: POWERTOOLS_METRICS_NAMESPACE
-                          Value: canvas-data-2
-                        - Name: POWERTOOLS_SERVICE_NAME
-                          Value: sync_table
-                        - Name: DB_USER_SECRET_NAME
-                          Value: !Ref DatabaseUserSecretCanvas
-                        - Name: ADMIN_SECRET_ARN
-                          Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
-                        - Name: DB_CLUSTER_ARN
-                          Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
-                        - Name: SSM_PARAMETER_NAME
-                          Value: !Sub ${SsmPathParameter}
-                  TimeoutSeconds: 43200
-                  Retry:
-                    - ErrorEquals:
-                      - ECS.ServiceException
-                      - ECS.ThrottlingException
-                      - ECS.ClientException
-                      - ECS.ClusterNotFoundException
-                      - ECS.TaskSetNotFoundException
-                      - ECS.AmazonECSException
-                      IntervalSeconds: 2
-                      MaxAttempts: 6
-                      BackoffRate: 6
-                  Catch:
-                    - ErrorEquals:
-                      - States.TaskFailed
-                      ResultPath: "$.error"
-                      Next: TableFailed
-                  Next: CheckSyncState
-                CheckSyncState:
+                CheckCatalogUpdate:
                   Type: Choice
                   Choices:
-                    - Variable: "$.Payload.state"
-                      StringEquals: needs_init
-                      Next: InitTable
-                  Default: TableComplete
-                InitTable:
-                  Type: Task
-                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
-                  Parameters:
-                    LaunchType: FARGATE
-                    Cluster: !Ref FargateCluster
-                    TaskDefinition: !Ref InitTableTaskDefinition
-                    NetworkConfiguration:
-                      AwsvpcConfiguration:
-                        AssignPublicIp: DISABLED
-                        SecurityGroups:
-                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
-                        Subnets:
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-                    Overrides:
-                      ContainerOverrides:
-                      - Name: !Sub ${AWS::StackName}-InitTable
-                        Environment:
-                        - Name: TASK_TOKEN
-                          Value.$: $$.Task.Token
-                        - Name: TABLE_NAME
-                          Value.$: States.JsonToString($.Payload)
-                        - Name: ENV
-                          Value: !Ref EnvironmentParameter
-                        - Name: LOG_LEVEL
-                          Value: !Ref LogLevel
-                        - Name: POWERTOOLS_METRICS_NAMESPACE
-                          Value: canvas-data-2
-                        - Name: POWERTOOLS_SERVICE_NAME
-                          Value: init_table
-                        - Name: DB_USER_SECRET_NAME
-                          Value: !Ref DatabaseUserSecretCanvas
-                        - Name: SSM_PARAMETER_NAME
-                          Value: !Sub ${SsmPathParameter}
-                  TimeoutSeconds: 43200
-                  Retry:
-                    - ErrorEquals:
-                      - ECS.ServiceException
-                      - ECS.ThrottlingException
-                      - ECS.ClientException
-                      - ECS.ClusterNotFoundException
-                      - ECS.TaskSetNotFoundException
-                      - ECS.AmazonECSException
-                      IntervalSeconds: 2
-                      MaxAttempts: 6
-                      BackoffRate: 6
-                  Catch:
-                    - ErrorEquals:
-                      - States.TaskFailed
-                      ResultPath: "$.error"
-                      Next: TableFailed
-                  Next: CheckInitState
-                CheckInitState:
-                  Type: Choice
-                  Choices:
-                    - Variable: "$.Payload.state"
-                      StringEquals: failed
-                      Next: TableFailed
-                  Default: TableComplete
-                TableFailed:
-                  Type: Pass
-                  OutputPath: "$.Payload"
-                  End: true
-                TableComplete:
+                    # Condition 1: If the namespace is 'catalog' AND the enableUpdate variable is FALSE (not true)
+                    - And:
+                        - Variable: "$.namespace"
+                          StringEquals: catalog
+                        - Variable: "$.enableUpdate"
+                          BooleanEquals: false
+                      Next: SkipUpdates # Skip if it's 'catalog' and disabled
+                  Default: TableUpdates
+                SkipUpdates:
                   Type: Succeed
-                  OutputPath: "$.Payload"
-          PivotResults:
-            Type: Pass
-            Next: SendNotification
-            ResultPath: null
-          SendNotification:
-            Type: Task
-            Resource: arn:aws:states:::sns:publish
-            Parameters:
-              Message.$: "$"
-              TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
-            End: true
+                  Comment: Skipping Catalog updates as requested.
+                # The new container state that groups the data update logic
+                TableUpdates:
+                  Type: Parallel
+                  Next: TableUpdatesComplete
+                  Branches:
+                    - StartAt: ListTables
+                      States:
+                        # Core Workflow
+                        ListTables:
+                          Type: Task
+                          Resource: arn:aws:states:::lambda:invoke
+                          OutputPath: "$.Payload"
+                          Parameters:
+                            Payload.$: "$"
+                            FunctionName: !Ref ListTablesFunction
+                          Retry:
+                            - ErrorEquals:
+                              - Lambda.ServiceException
+                              - Lambda.AWSLambdaException
+                              - Lambda.SdkClientException
+                              - Lambda.TooManyRequestsException
+                              IntervalSeconds: 2
+                              MaxAttempts: 6
+                              BackoffRate: 6
+                          Next: ProcessTables
+                        ProcessTables:
+                          Type: Map
+                          MaxConcurrency: 15
+                          ItemsPath: "$.tables"
+                          Next: PivotResults
+                          ItemProcessor:
+                            ProcessorConfig:
+                              Mode: INLINE
+                            StartAt: SyncTable
+                            States:
+                              SyncTable:
+                                Type: Task
+                                Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
+                                Parameters:
+                                  LaunchType: FARGATE
+                                  Cluster: !Ref FargateCluster
+                                  TaskDefinition: !Ref SyncTableTaskDefinition
+                                  NetworkConfiguration:
+                                    AwsvpcConfiguration:
+                                      AssignPublicIp: DISABLED
+                                      SecurityGroups:
+                                      - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
+                                      Subnets:
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+                                  Overrides:
+                                    ContainerOverrides:
+                                    - Name: !Sub ${AWS::StackName}-SyncTable
+                                      Environment:
+                                      - Name: TASK_TOKEN
+                                        Value.$: $$.Task.Token
+                                      - Name: TABLE_NAME
+                                        Value.$: States.JsonToString($)
+                                      - Name: ENV
+                                        Value: !Ref EnvironmentParameter
+                                      - Name: LOG_LEVEL
+                                        Value: !Ref LogLevel
+                                      - Name: POWERTOOLS_METRICS_NAMESPACE
+                                        Value: canvas-data-2
+                                      - Name: POWERTOOLS_SERVICE_NAME
+                                        Value: sync_table
+                                      - Name: DB_USER_SECRET_NAME
+                                        Value: !Ref DatabaseUserSecretCanvas
+                                      - Name: ADMIN_SECRET_ARN
+                                        Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
+                                      - Name: DB_CLUSTER_ARN
+                                        Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
+                                      - Name: SSM_PARAMETER_NAME
+                                        Value: !Sub ${SsmPathParameter}
+                                TimeoutSeconds: 43200
+                                Retry:
+                                  - ErrorEquals:
+                                    - ECS.ServiceException
+                                    - ECS.ThrottlingException
+                                    - ECS.ClientException
+                                    - ECS.ClusterNotFoundException
+                                    - ECS.TaskSetNotFoundException
+                                    - ECS.AmazonECSException
+                                    IntervalSeconds: 2
+                                    MaxAttempts: 6
+                                    BackoffRate: 6
+                                Catch:
+                                  - ErrorEquals:
+                                    - States.TaskFailed
+                                    ResultPath: "$.error"
+                                    Next: TableFailed
+                                Next: CheckSyncState
+                              CheckSyncState:
+                                Type: Choice
+                                Choices:
+                                  - Variable: "$.Payload.state"
+                                    StringEquals: needs_init
+                                    Next: InitTable
+                                Default: TableComplete
+                              InitTable:
+                                Type: Task
+                                Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
+                                Parameters:
+                                  LaunchType: FARGATE
+                                  Cluster: !Ref FargateCluster
+                                  TaskDefinition: !Ref InitTableTaskDefinition
+                                  NetworkConfiguration:
+                                    AwsvpcConfiguration:
+                                      AssignPublicIp: DISABLED
+                                      SecurityGroups:
+                                      - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
+                                      Subnets:
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+                                  Overrides:
+                                    ContainerOverrides:
+                                    - Name: !Sub ${AWS::StackName}-InitTable
+                                      Environment:
+                                      - Name: TASK_TOKEN
+                                        Value.$: $$.Task.Token
+                                      - Name: TABLE_NAME
+                                        Value.$: States.JsonToString($.Payload)
+                                      - Name: ENV
+                                        Value: !Ref EnvironmentParameter
+                                      - Name: LOG_LEVEL
+                                        Value: !Ref LogLevel
+                                      - Name: POWERTOOLS_METRICS_NAMESPACE
+                                        Value: canvas-data-2
+                                      - Name: POWERTOOLS_SERVICE_NAME
+                                        Value: init_table
+                                      - Name: DB_USER_SECRET_NAME
+                                        Value: !Ref DatabaseUserSecretCanvas
+                                      - Name: SSM_PARAMETER_NAME
+                                        Value: !Sub ${SsmPathParameter}
+                                TimeoutSeconds: 43200
+                                Retry:
+                                  - ErrorEquals:
+                                    - ECS.ServiceException
+                                    - ECS.ThrottlingException
+                                    - ECS.ClientException
+                                    - ECS.ClusterNotFoundException
+                                    - ECS.TaskSetNotFoundException
+                                    - ECS.AmazonECSException
+                                    IntervalSeconds: 2
+                                    MaxAttempts: 6
+                                    BackoffRate: 6
+                                Catch:
+                                  - ErrorEquals:
+                                    - States.TaskFailed
+                                    ResultPath: "$.error"
+                                    Next: TableFailed
+                                Next: CheckInitState
+                              CheckInitState:
+                                Type: Choice
+                                Choices:
+                                  - Variable: "$.Payload.state"
+                                    StringEquals: failed
+                                    Next: TableFailed
+                                Default: TableComplete
+                              TableFailed:
+                                Type: Pass
+                                OutputPath: "$.Payload"
+                                End: true
+                              TableComplete:
+                                Type: Succeed
+                                OutputPath: "$.Payload"
+                        PivotResults:
+                          Type: Pass
+                          Next: SendNotification
+                          ResultPath: null
+                        SendNotification:
+                          Type: Task
+                          Resource: arn:aws:states:::sns:publish
+                          Parameters:
+                            Message.$: "$"
+                            TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
+                          End: true
+                TableUpdatesComplete:
+                  Type: Succeed
 
   StateMachineLogGroup:
     Type: AWS::Logs::LogGroup

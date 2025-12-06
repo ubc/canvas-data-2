@@ -1172,7 +1172,6 @@ Resources:
             Type: Map
             MaxConcurrency: 0 # Run all items (namespaces) concurrently
             ItemsPath: "$" # Iterate over the input array from StartNamespaces
-            Next: EndSuccess
             ItemProcessor:
               ProcessorConfig:
                 Mode: INLINE
@@ -1371,6 +1370,7 @@ Resources:
                           End: true
                 TableUpdatesComplete:
                   Type: Succeed
+            End: true
 
   StateMachineLogGroup:
     Type: AWS::Logs::LogGroup

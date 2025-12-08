@@ -77,7 +77,7 @@ def start(event):
     db_name = db_user_secret["dbname"]
     db_host = db_user_secret["host"]
     db_port = db_user_secret["port"]
-    namespace = db_user
+    namespace = os.environ.get('CD2_NAMESPACE', 'canvas')
 
     conn_str = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=verify-ca&sslrootcert=rds-combined-ca-bundle.pem"
     db_connection = DatabaseConnection(connection_string=conn_str)

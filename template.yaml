@@ -1204,6 +1204,7 @@ Resources:
                           Resource: arn:aws:states:::lambda:invoke
                           OutputPath: "$.Payload"
                           Parameters:
+                            namespace.$: "$.namespace"
                             Payload.$: "$"
                             FunctionName: !Ref ListTablesFunction
                           Retry:
@@ -1265,6 +1266,8 @@ Resources:
                                         Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
                                       - Name: SSM_PARAMETER_NAME
                                         Value: !Sub ${SsmPathParameter}
+                                      - Name: CD2_NAMESPACE
+                                        Value.$: $.namespace
                                 TimeoutSeconds: 43200
                                 Retry:
                                   - ErrorEquals:
@@ -1325,6 +1328,8 @@ Resources:
                                         Value: !Ref DatabaseUserSecretCanvas
                                       - Name: SSM_PARAMETER_NAME
                                         Value: !Sub ${SsmPathParameter}
+                                      - Name: CD2_NAMESPACE
+                                        Value.$: $.namespace
                                 TimeoutSeconds: 43200
                                 Retry:
                                   - ErrorEquals:

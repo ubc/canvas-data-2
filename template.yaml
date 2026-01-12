@@ -1338,7 +1338,7 @@ Resources:
     Properties:
       Location:
         ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
-        SemanticVersion: 2024.25.1
+        SemanticVersion: 2025.46.1
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler

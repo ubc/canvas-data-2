@@ -28,8 +28,6 @@ rds_data_client = boto3.client("rds-data")
 cf_resource = boto3.resource("cloudformation")
 stack = cf_resource.Stack(args.stack_name)
 
-is_additional_stack = args.is_additional_stack
-
 console.print("Starting database preparation", style="bold green")
 
 # Fetch stack outputs and parameters
@@ -178,10 +176,15 @@ for s in user_secrets["SecretList"]:
 
     # Create schema for user (with them as owner) if they need a schema
     if username in users_to_create_schema:
-        create_schema(username, username, database_name)
+        create_schema('canvas', username, database_name)
+
+        # ToDo: perhaps add a parameter to indicate whether the `catalog` schema needs to be created.
+        if 'catalog' in username:
+            create_schema('catalog', username, database_name)
 
     # Create instructure_dap schema for the CD2 database user with them as owner
-    if username == db_user_username:
+    #if username == db_user_username:
+    if username in users_to_create_schema:
         create_schema("instructure_dap", username, database_name)
 
     # Assign privileges to canvas and instructure_dap schemas
@@ -196,7 +199,3 @@ for s in user_secrets["SecretList"]:
 
     # Grant the CREATE privilege on the cd2 database.
     grant_create_permission_on_db_to_db_user(username, database_name)
-
-    # If this is for the new additional stack, grant the access permission to the instructure_dap schema.
-    if is_additional_stack:
-        grant_access_permission_on_instructure_dap_schema_to_db_user(username, database_name)

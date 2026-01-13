@@ -148,7 +148,7 @@ Parameters:
   AthenaConnectorLambdaNameParameter:
     Type: String
     Description: (Optional) Name of Athena Connector Lambda. Unused if AthenaConnectorParameter is set to false.
-    Default: athena_postgresql_connector_cd2
+    Default: athena_postgresql_connector_cd2_v_2025_46_1
 
   NotificationTopicParameter:
     Type: String

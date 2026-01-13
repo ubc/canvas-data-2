@@ -1202,7 +1202,11 @@ Resources:
                         ListTables:
                           Type: Task
                           Resource: arn:aws:states:::lambda:invoke
-                          OutputPath: "$.Payload"
+                          #OutputPath: "$.Payload"
+                          OutputPath: "$"
+                          ResultSelector:
+                            namespace.$: "$.Payload.namespace"
+                            tables.$: "$.Payload.tables"
                           Parameters:
                             Payload:
                               namespace.$: $.namespace

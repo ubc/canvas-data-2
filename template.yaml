@@ -1204,8 +1204,9 @@ Resources:
                           Resource: arn:aws:states:::lambda:invoke
                           OutputPath: "$.Payload"
                           Parameters:
-                            namespace.$: "$.namespace"
-                            Payload.$: "$"
+                            Payload:
+                              namespace.$: $.namespace
+                              input.$: $
                             FunctionName: !Ref ListTablesFunction
                           Retry:
                             - ErrorEquals:

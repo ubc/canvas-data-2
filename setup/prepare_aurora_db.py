@@ -191,11 +191,15 @@ for s in user_secrets["SecretList"]:
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
 
-    grant_usage_to_schema(username, username, database_name)
+    grant_usage_to_schema(username, 'canvas', database_name)
     assign_privileges(username, username, user_role, database_name)
 
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)
+
+    if 'catalog' in username:
+        grant_usage_to_schema(username, "catalog", database_name)
+        assign_privileges(username, "catalog", user_role, database_name)
 
     # Grant the CREATE privilege on the cd2 database.
     grant_create_permission_on_db_to_db_user(username, database_name)

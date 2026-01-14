@@ -1330,7 +1330,7 @@ Resources:
                                       - Name: SSM_PARAMETER_NAME
                                         Value: !Sub ${SsmPathParameter}
                                       - Name: CD2_NAMESPACE
-                                        Value.$: $.namespace
+                                        Value.$: $.Payload.namespace
                                 TimeoutSeconds: 43200
                                 Retry:
                                   - ErrorEquals:

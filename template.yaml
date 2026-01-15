@@ -1180,14 +1180,18 @@ Resources:
                 CheckCatalogUpdate:
                   Type: Choice
                   Choices:
-                    # Condition 1: If the namespace is 'catalog' AND the enableUpdate variable is FALSE (not true)
+                    # Condition 1: The namespace 'canvas' always gets updated.
+                    - Variable: "$.namespace"
+                      StringEquals: canvas
+                      Next: TableUpdates
+                    # Condition 2: If the namespace is 'catalog' AND the enableUpdate variable is FALSE (not true)
                     - And:
                         - Variable: "$.namespace"
                           StringEquals: catalog
                         - Variable: "$.enableUpdate"
-                          BooleanEquals: false
-                      Next: SkipUpdates # Skip if it's 'catalog' and disabled
-                  Default: TableUpdates
+                          BooleanEquals: true
+                      Next: TableUpdates
+                  Default: SkipUpdates
                 SkipUpdates:
                   Type: Succeed
                   Comment: Skipping Catalog updates as requested.

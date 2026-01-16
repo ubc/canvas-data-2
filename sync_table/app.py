@@ -118,6 +118,13 @@ def start(event):
                     )
                 )
                 event["state"] = STATE_COMPLETE_WITH_UPDATE
+            except ValueError as e:
+                logger.exception(e)
+                if "table not initialized" in str(e):
+                    event["state"] = STATE_NEEDS_INIT
+                else:
+                    event["state"] = STATE_FAILED
+                event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
             except Exception as e:
                 logger.exception(e)
                 event["state"] = STATE_FAILED

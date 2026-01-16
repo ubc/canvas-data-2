@@ -142,7 +142,6 @@ def start(event):
         logger.exception(e)
         event["state"] = STATE_FAILED
         event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
-        raise
 
     logger.info(f"event: {event}")
 

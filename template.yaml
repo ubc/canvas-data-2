@@ -1290,11 +1290,12 @@ Resources:
                                     - States.TaskFailed
                                     ResultPath: "$.error"
                                     Next: TableFailed
+                                ResultPath: "$.sync_result"
                                 Next: CheckSyncState
                               CheckSyncState:
                                 Type: Choice
                                 Choices:
-                                  - Variable: "$.Payload.state"
+                                  - Variable: "$.sync_result.Payload.state"
                                     StringEquals: needs_init
                                     Next: InitTable
                                 Default: TableComplete
@@ -1320,7 +1321,7 @@ Resources:
                                       - Name: TASK_TOKEN
                                         Value.$: $$.Task.Token
                                       - Name: TABLE_NAME
-                                        Value.$: States.JsonToString($.Payload)
+                                        Value.$: States.JsonToString($.sync_result.Payload)
                                       - Name: ENV
                                         Value: !Ref EnvironmentParameter
                                       - Name: LOG_LEVEL
@@ -1352,11 +1353,12 @@ Resources:
                                     - States.TaskFailed
                                     ResultPath: "$.error"
                                     Next: TableFailed
+                                ResultPath: "$.init_result"
                                 Next: CheckInitState
                               CheckInitState:
                                 Type: Choice
                                 Choices:
-                                  - Variable: "$.Payload.state"
+                                  - Variable: "$.init_result.Payload.state"
                                     StringEquals: failed
                                     Next: TableFailed
                                 Default: TableComplete

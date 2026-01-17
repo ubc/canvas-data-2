@@ -218,22 +218,22 @@ if __name__ == "__main__":
     try:
         result = start(event)
 
+        payload = {
+            "Payload": result
+        }
+
+        if token:
+            stepfunctions.send_task_success(
+                taskToken=token,
+                output=json.dumps(payload))
+
     except Exception as err:
         if token:
             stepfunctions.send_task_failure(
                 taskToken=token,
                 error=f'{err}'
             )
-        raise err
-
-    payload = {
-        "Payload": result
-    }
-
-    if token:
-        stepfunctions.send_task_success(
-            taskToken=token,
-            output=json.dumps(payload))
+        #raise err
 
 """
     if token and result['state'] == 'failed':

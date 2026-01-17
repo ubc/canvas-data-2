@@ -1364,11 +1364,11 @@ Resources:
                                 Default: TableComplete
                               TableFailed:
                                 Type: Pass
-                                OutputPath: "$.Payload"
+                                #OutputPath: "$.Payload"
                                 End: true
                               TableComplete:
                                 Type: Succeed
-                                OutputPath: "$.Payload"
+                                #OutputPath: "$.Payload"
                         PivotResults:
                           Type: Pass
                           Next: SendNotification

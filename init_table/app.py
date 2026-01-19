@@ -60,6 +60,11 @@ def start(event):
         )
 
         event['state'] = 'complete'
+
+        # Remove the error message from the sync_table job because it is not necessary after the successful table initialization.
+        if "error_message" in event and "sync_table - needs_init" in event["error_message"]:
+            del event["error_message"]
+
     except Exception as e:
         logger.exception(e)
         event['state'] = 'failed'

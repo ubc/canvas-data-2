@@ -1189,7 +1189,7 @@ Resources:
                         - Variable: "$.namespace"
                           StringEquals: catalog
                         - Variable: "$.enableUpdate"
-                          BooleanEquals: true
+                          StringEquals: "true"
                       Next: TableUpdates
                   Default: SkipUpdates
                 SkipUpdates:

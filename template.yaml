@@ -1320,8 +1320,8 @@ Resources:
                                       Environment:
                                       - Name: TASK_TOKEN
                                         Value.$: $$.Task.Token
-                                      - Name: TABLE_NAME
-                                        Value.$: $.sync_result.Payload.table_name
+                                      - Name: TABLE_EVENT
+                                        Value.$: $.sync_result.Payload
                                       - Name: ENV
                                         Value: !Ref EnvironmentParameter
                                       - Name: LOG_LEVEL

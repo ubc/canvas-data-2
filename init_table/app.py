@@ -30,6 +30,8 @@ param_path = f'/{env}/{ssm_parameter_name}'
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 
 def start(event):
+    logger.info(f"event: {event}")
+
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
     dap_client_id = params['dap_client_id']
     dap_client_secret = params['dap_client_secret']
@@ -72,7 +74,7 @@ async def init_table(credentials, api_base_url, db_connection, namespace, table_
         await SQLReplicator(session, db_connection).initialize(namespace, table_name)
 
 if __name__ == "__main__":
-    event = os.environ.get("TABLE_NAME")
+    event = json.loads(os.environ.get('TABLE_EVENT'))
     token = os.environ.get('TASK_TOKEN')
 
     payload = None

@@ -1290,12 +1290,11 @@ Resources:
                                     - States.TaskFailed
                                     ResultPath: "$.error"
                                     Next: TableFailed
-                                ResultPath: "$.sync_result"
                                 Next: CheckSyncState
                               CheckSyncState:
                                 Type: Choice
                                 Choices:
-                                  - Variable: "$.sync_result.Payload.state"
+                                  - Variable: "$.Payload.state"
                                     StringEquals: needs_init
                                     Next: InitTable
                                 Default: TableComplete
@@ -1321,7 +1320,7 @@ Resources:
                                       - Name: TASK_TOKEN
                                         Value.$: $$.Task.Token
                                       - Name: TABLE_EVENT
-                                        Value.$: States.JsonToString($.sync_result.Payload)
+                                        Value.$: States.JsonToString($.Payload)
                                       - Name: ENV
                                         Value: !Ref EnvironmentParameter
                                       - Name: LOG_LEVEL
@@ -1335,7 +1334,7 @@ Resources:
                                       - Name: SSM_PARAMETER_NAME
                                         Value: !Sub ${SsmPathParameter}
                                       - Name: CD2_NAMESPACE
-                                        Value.$: $.sync_result.Payload.namespace
+                                        Value.$: $.Payload.namespace
                                 TimeoutSeconds: 43200
                                 Retry:
                                   - ErrorEquals:
@@ -1353,22 +1352,21 @@ Resources:
                                     - States.TaskFailed
                                     ResultPath: "$.error"
                                     Next: TableFailed
-                                ResultPath: "$.init_result"
                                 Next: CheckInitState
                               CheckInitState:
                                 Type: Choice
                                 Choices:
-                                  - Variable: "$.init_result.Payload.state"
+                                  - Variable: "$.Payload.state"
                                     StringEquals: failed
                                     Next: TableFailed
                                 Default: TableComplete
                               TableFailed:
                                 Type: Pass
-                                #OutputPath: "$.Payload"
+                                OutputPath: "$.Payload"
                                 End: true
                               TableComplete:
                                 Type: Succeed
-                                #OutputPath: "$.Payload"
+                                OutputPath: "$.Payload"
                         PivotResults:
                           Type: Pass
                           Next: SendNotification

@@ -1321,7 +1321,7 @@ Resources:
                                       - Name: TASK_TOKEN
                                         Value.$: $$.Task.Token
                                       - Name: TABLE_NAME
-                                        Value.$: States.JsonToString($.sync_result.Payload)
+                                        Value.$: $.sync_result.Payload.table
                                       - Name: ENV
                                         Value: !Ref EnvironmentParameter
                                       - Name: LOG_LEVEL

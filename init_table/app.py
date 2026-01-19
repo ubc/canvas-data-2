@@ -72,7 +72,7 @@ async def init_table(credentials, api_base_url, db_connection, namespace, table_
         await SQLReplicator(session, db_connection).initialize(namespace, table_name)
 
 if __name__ == "__main__":
-    event = json.loads(os.environ.get('TABLE_NAME'))
+    event = os.environ.get("TABLE_NAME")
     token = os.environ.get('TASK_TOKEN')
 
     payload = None

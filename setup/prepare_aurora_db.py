@@ -12,12 +12,6 @@ parser.add_argument(
     help="The name of the Canvas Data 2 CloudFormation stack containing the Aurora database",
     required=True,
 )
-parser.add_argument(
-    "--is-additional-stack",
-    help="Whether this is for the DB changes for the additional CD2 stack",
-    action="store_true",   # If specified, sets the value as True
-    default=False          # Default is False when not passed
-)
 args = parser.parse_args()
 
 console = Console()

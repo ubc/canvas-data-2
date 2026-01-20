@@ -105,15 +105,6 @@ def start(event):
         )
 
         event["state"] = STATE_COMPLETE
-    except (NonExistingTableError, ValueError) as e:
-        if "table not initialized" in str(e):
-            event["state"] = STATE_NEEDS_INIT
-            event["error_message"] = generate_error_string(
-                FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url
-            )
-            logger.info(f"event: {event}")
-            return event
-        raise
     except QueryException as e:
         logger.exception(f"{e}")
         if "ALTER TABLE" in str(e):
@@ -127,18 +118,6 @@ def start(event):
                     )
                 )
                 event["state"] = STATE_COMPLETE_WITH_UPDATE
-            except (NonExistingTableError, ValueError) as e:
-                if "table not initialized" in str(e):
-                    event["state"] = STATE_NEEDS_INIT
-                    event["error_message"] = generate_error_string(
-                        FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url
-                    )
-                    logger.info(f"event: {event}")
-                    return event
-                else:
-                    event["state"] = STATE_FAILED
-                event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
-                raise
             except Exception as e:
                 logger.exception(e)
                 event["state"] = STATE_FAILED

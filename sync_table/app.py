@@ -120,7 +120,6 @@ def start(event):
             # This is a special case where the table needs a DDL update
             # Before we can apply the DDL update, we need to drop all dependent views
             try:
-                logger.debug("===Inside the ALTER TABLE case===")
                 drop_dependencies(db_name="cd2", table_name=table_name)
                 asyncio.get_event_loop().run_until_complete(
                     sync_table(

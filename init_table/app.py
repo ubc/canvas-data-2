@@ -30,8 +30,6 @@ param_path = f'/{env}/{ssm_parameter_name}'
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 
 def start(event):
-    logger.info(f"event: {event}")
-
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
     dap_client_id = params['dap_client_id']
     dap_client_secret = params['dap_client_secret']

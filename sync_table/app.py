@@ -120,7 +120,7 @@ def start(event):
             # This is a special case where the table needs a DDL update
             # Before we can apply the DDL update, we need to drop all dependent views
             try:
-                drop_dependencies(db_name="cd2", table_name=table_name)
+                drop_dependencies(db_name=db_name, table_name=table_name)
                 asyncio.get_event_loop().run_until_complete(
                     sync_table(
                         credentials, api_base_url, db_connection, namespace, table_name
@@ -145,7 +145,7 @@ def start(event):
                 # Make the each error as string.
                 event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
             finally:
-                restore_dependencies(db_name="cd2", table_name=table_name)
+                restore_dependencies(db_name=db_name, table_name=table_name)
         else:
             event["state"] = STATE_FAILED
     except NonExistingTableError as e:

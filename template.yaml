@@ -1396,14 +1396,12 @@ Resources:
     Condition: CreateAthenaConnector
     Properties:
       Location:
-        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
         SemanticVersion: 2025.46.1
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
         GlueConnection: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
-        DefaultConnectionString: dummy
-        SecretNamePrefix: dummy
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'

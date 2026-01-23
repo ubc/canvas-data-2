@@ -1402,6 +1402,7 @@ Resources:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
         GlueConnection: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'

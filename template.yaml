@@ -1404,17 +1404,17 @@ Resources:
         GlueConnection: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
         SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
         DefaultScale: '0'
-        DisableSpillEncryption: 'false'
-        LambdaMemory: '3008'
-        LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
-        LambdaTimeout: '900'
+        #DisableSpillEncryption: 'false'
+        #LambdaMemory: '3008'
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+        #LambdaTimeout: '900'
         # PermissionsBoundaryARN:
         SecurityGroupIds: !If
           - ExistingDatabaseClientSecurityGroup
           - !Ref DatabaseClientSecurityGroupParameter
           - !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
-        SpillPrefix: postgresql
+        #SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
   AthenaPostgresGlueConnection:

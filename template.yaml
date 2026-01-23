@@ -1401,13 +1401,15 @@ Resources:
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
-        GlueConnection: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
+        DefaultConnectionString: !Sub |
+          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
         DefaultScale: '0'
         DisableSpillEncryption: 'false'
         LambdaMemory: '3008'
         LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
         LambdaTimeout: '900'
         # PermissionsBoundaryARN:
+        SecretNamePrefix: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
         SecurityGroupIds: !If
           - ExistingDatabaseClientSecurityGroup
           - !Ref DatabaseClientSecurityGroupParameter
@@ -1415,26 +1417,6 @@ Resources:
         SpillBucket: !Ref AthenaSpillBucket
         SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
-
-  AthenaPostgresGlueConnection:
-    Type: AWS::Glue::Connection
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      ConnectionInput:
-        Name: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
-        Description: "Connection for Canvas-Data-2 Athena PostgreSQL Connector"
-        ConnectionType: JDBC
-        PhysicalConnectionRequirements:
-          SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
-          SecurityGroupIdList:
-            - !If
-              - ExistingDatabaseClientSecurityGroup
-              - !Ref DatabaseClientSecurityGroupParameter
-              - !Ref DatabaseClientSecurityGroup
-        ConnectionProperties:
-          JDBC_CONNECTION_URL: !Sub >
-            jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
-          SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket

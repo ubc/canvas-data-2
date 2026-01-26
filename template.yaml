@@ -1419,6 +1419,7 @@ Resources:
 
   AthenaPostgresGlueConnection:
     Type: AWS::Glue::Connection
+    Condition: CreateAthenaConnector
     Properties:
       CatalogId: !Ref AWS::AccountId
       ConnectionInput:

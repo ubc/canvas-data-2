@@ -1523,6 +1523,12 @@ Resources:
           Action:
           - kms:Decrypt
           Resource: !GetAtt SecretsKmsKey.Arn
+        - Action:
+          - glue:GetConnection
+          Effect: Allow
+          Resource:
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresGlueConnection}'
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
   AthenaPostgreSQLDataCatalog:
     Type: AWS::Athena::DataCatalog

@@ -1434,11 +1434,9 @@ Resources:
               - !Ref DatabaseClientSecurityGroupParameter
               - !Ref DatabaseClientSecurityGroup
         ConnectionProperties:
-          HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
-          PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
-          DATABASE: !Sub cd2
-          JDBC_PARAMS: sslmode=verify-ca;sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory;stringtype=unspecified
-          ENFORCE_SSL: true
+          JDBC_CONNECTION_URL: !Sub >
+            jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+          SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket

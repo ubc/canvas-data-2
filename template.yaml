@@ -1437,7 +1437,7 @@ Resources:
           HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
           PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
           DATABASE: !Sub cd2
-          JDBC_PARAMS: sslmode=verify-ca;sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory;stringtype=unspecified
+          #JDBC_PARAMS: sslmode=verify-ca;sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory;stringtype=unspecified
           ENFORCE_SSL: true
 
   AthenaSpillBucket:

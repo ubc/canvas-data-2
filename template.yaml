@@ -1434,7 +1434,7 @@ Resources:
               - !Ref DatabaseClientSecurityGroupParameter
               - !Ref DatabaseClientSecurityGroup
         ConnectionProperties:
-          JDBC_CONNECTION_URL: !Sub >
+          JDBC_CONNECTION_URL: !Sub |
             jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
           SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
 

@@ -1537,7 +1537,7 @@ Resources:
       Name: canvas-data
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to Canvas Data 2 for canvas.ubc.ca
-      Type: LAMBDA
+      Type: FEDERATED
       Parameters:
         #function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
         connection-properties:

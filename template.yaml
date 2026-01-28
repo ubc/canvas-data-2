@@ -1435,7 +1435,7 @@ Resources:
               - !Ref DatabaseClientSecurityGroup
         ConnectionProperties:
           JDBC_CONNECTION_URL: !Sub >
-            postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+            jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
           SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
 
   AthenaSpillBucket:

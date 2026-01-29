@@ -1551,6 +1551,17 @@ Resources:
               "database":"cd2",
               "SecretArn":"${DatabaseUserSecretAthena}"
             }
+        PhysicalConnectionRequirements: !Sub
+          - |
+            {
+              "SubnetId": "${SubnetId}",
+              "SecurityGroupIdList": ["${SecurityGroupId}"]
+            }
+          - SubnetId: !Select [ 0, !Ref LambdaSubnetListParameter ]
+            SecurityGroupId: !If
+              - ExistingDatabaseClientSecurityGroup
+              - !Ref DatabaseClientSecurityGroupParameter
+              - !Ref DatabaseClientSecurityGroup
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

@@ -1549,6 +1549,20 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
+  CanvasDataCatalogTest:
+    Type: AWS::Athena::DataCatalog
+    Condition: CreateAthenaConnector
+    Properties:
+      Name: cd2
+      ConnectionType: POSTGRESQL
+      Description: PostgreSQL connector to cd2
+      Type: FEDERATED
+      Parameters:
+        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
   # Secret for PostgreSQL Athena connector "athena" user
   DatabaseUserSecretAthena:
     Type: AWS::SecretsManager::Secret

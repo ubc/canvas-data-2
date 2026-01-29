@@ -1551,7 +1551,7 @@ Resources:
               "database":"cd2",
               "SecretArn":"${DatabaseUserSecretAthena}"
             }
-        PhysicalConnectionRequirements: !Sub
+        physical-connection-requirements: !Sub
           - |
             {
               "SubnetId": "${SubnetId}",

@@ -1417,39 +1417,39 @@ Resources:
   #       #SpillPrefix: postgresql
   #       SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
-  AthenaPostgresNewGlueConnection:
-    Type: AWS::Glue::Connection
-    Condition: CreateAthenaConnector
-    Properties:
-      CatalogId: !Ref AWS::AccountId
-      ConnectionInput:
-        Name: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection-new
-        Description: "Connection for Canvas-Data-2 Athena PostgreSQL Connector"
-        ConnectionType: POSTGRESQL
-        PhysicalConnectionRequirements:
-          SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
-          SecurityGroupIdList:
-            - !If
-              - ExistingDatabaseClientSecurityGroup
-              - !Ref DatabaseClientSecurityGroupParameter
-              - !Ref DatabaseClientSecurityGroup
-        ConnectionProperties:
-          #JDBC_CONNECTION_URL: !Sub |
-          #  jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
-          HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
-          DATABASE: "cd2"
-          JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
-          PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
-          #SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
-        AthenaProperties:
-          spill_prefix: "cd2-spill"
-          #lambda_function_arn: "arn:aws:lambda:ca-central-1:076457905465:function:athenafederatedcatalog_cd2_test"
-          default_scale: "0"
-          disable_spill_encryption: "false"
-          spill_bucket: !Ref AthenaSpillBucket
-        AuthenticationConfiguration:
-          AuthenticationType: "BASIC"
-          SecretArn: !Ref DatabaseUserSecretAthena
+  # AthenaPostgresNewGlueConnection:
+  #   Type: AWS::Glue::Connection
+  #   Condition: CreateAthenaConnector
+  #   Properties:
+  #     CatalogId: !Ref AWS::AccountId
+  #     ConnectionInput:
+  #       Name: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection-new
+  #       Description: "Connection for Canvas-Data-2 Athena PostgreSQL Connector"
+  #       ConnectionType: POSTGRESQL
+  #       PhysicalConnectionRequirements:
+  #         SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
+  #         SecurityGroupIdList:
+  #           - !If
+  #             - ExistingDatabaseClientSecurityGroup
+  #             - !Ref DatabaseClientSecurityGroupParameter
+  #             - !Ref DatabaseClientSecurityGroup
+  #       ConnectionProperties:
+  #         #JDBC_CONNECTION_URL: !Sub |
+  #         #  jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+  #         HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
+  #         DATABASE: "cd2"
+  #         JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
+  #         PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
+  #         #SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
+  #       AthenaProperties:
+  #         spill_prefix: "cd2-spill"
+  #         #lambda_function_arn: "arn:aws:lambda:ca-central-1:076457905465:function:athenafederatedcatalog_cd2_test"
+  #         default_scale: "0"
+  #         disable_spill_encryption: "false"
+  #         spill_bucket: !Ref AthenaSpillBucket
+  #       AuthenticationConfiguration:
+  #         AuthenticationType: "BASIC"
+  #         SecretArn: !Ref DatabaseUserSecretAthena
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket
@@ -1536,27 +1536,27 @@ Resources:
           Action:
           - kms:Decrypt
           Resource: !GetAtt SecretsKmsKey.Arn
-        - Action:
-          - glue:GetConnection
-          Effect: Allow
-          Resource:
-            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresNewGlueConnection}'
-            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
+        # - Action:
+        #   - glue:GetConnection
+        #   Effect: Allow
+          # Resource:
+          #   - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresNewGlueConnection}'
+          #   - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
-  CanvasDataCatalog:
-    Type: AWS::Athena::DataCatalog
-    Condition: CreateAthenaConnector
-    Properties:
-      Name: canvas-data
-      ConnectionType: POSTGRESQL
-      Description: PostgreSQL connector to Canvas Data 2 for canvas.ubc.ca
-      Type: FEDERATED
-      Parameters:
-        connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresNewGlueConnection}
-        lambda-role-arn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
-      Tags:
-        - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}
+  # CanvasDataCatalog:
+  #   Type: AWS::Athena::DataCatalog
+  #   Condition: CreateAthenaConnector
+  #   Properties:
+  #     Name: canvas-data
+  #     ConnectionType: POSTGRESQL
+  #     Description: PostgreSQL connector to Canvas Data 2 for canvas.ubc.ca
+  #     Type: FEDERATED
+  #     Parameters:
+  #       connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresNewGlueConnection}
+  #       lambda-role-arn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+  #     Tags:
+  #       - Key: !Sub ${TagNameParameter}
+  #         Value: !Sub ${TagValueParameter}
 
   # Secret for PostgreSQL Athena connector "athena" user
   DatabaseUserSecretAthena:

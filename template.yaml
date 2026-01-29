@@ -1552,7 +1552,7 @@ Resources:
       Description: PostgreSQL connector to Canvas Data 2 for canvas.ubc.ca
       Type: FEDERATED
       Parameters:
-        connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresGlueConnection}
+        connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${AthenaPostgresNewGlueConnection}
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

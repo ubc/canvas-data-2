@@ -1423,7 +1423,7 @@ Resources:
     Properties:
       CatalogId: !Ref AWS::AccountId
       ConnectionInput:
-        Name: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
+        Name: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection-new
         Description: "Connection for Canvas-Data-2 Athena PostgreSQL Connector"
         ConnectionType: POSTGRESQL
         PhysicalConnectionRequirements:

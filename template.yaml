@@ -1417,7 +1417,7 @@ Resources:
   #       #SpillPrefix: postgresql
   #       SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
-  AthenaPostgresGlueConnection:
+  AthenaPostgresNewGlueConnection:
     Type: AWS::Glue::Connection
     Condition: CreateAthenaConnector
     Properties:

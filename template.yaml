@@ -1556,7 +1556,7 @@ Resources:
       Name: cd2
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2
-      Type: FEDERATED
+      Type: LAMBDA
       Parameters:
         function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
       Tags:

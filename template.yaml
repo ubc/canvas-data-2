@@ -1391,31 +1391,26 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  # #AthenaPostgreSQLConnector:
-  # #  Type: AWS::Serverless::Application
-  # #  Condition: CreateAthenaConnector
-  # #  Properties:
-  #     Location:
-  #       #ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
-  #       SemanticVersion: 2025.46.1
-  #     Parameters:
-  #       LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
-  #       CompositeHandler: PostGreSqlMuxCompositeHandler
-  #       GlueConnection: !Sub ${AWS::StackName}-cd2-athena-postgresql-connection
-  #       SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
-  #       DefaultScale: '0'
-  #       #DisableSpillEncryption: 'false'
-  #       #LambdaMemory: '3008'
-  #       LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
-  #       #LambdaTimeout: '900'
-  #       # PermissionsBoundaryARN:
-  #       SecurityGroupIds: !If
-  #         - ExistingDatabaseClientSecurityGroup
-  #         - !Ref DatabaseClientSecurityGroupParameter
-  #         - !Ref DatabaseClientSecurityGroup
-  #       SpillBucket: !Ref AthenaSpillBucket
-  #       #SpillPrefix: postgresql
-  #       SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
+  AthenaPostgreSQLConnector:
+   Type: AWS::Serverless::Application
+   Condition: CreateAthenaConnector
+   Properties:
+      Location:
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
+        SemanticVersion: 2025.46.1
+      Parameters:
+        LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
+        CompositeHandler: PostGreSqlMuxCompositeHandler
+        GlueConnection: !Ref CD2GlueConnection
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
+        DefaultScale: '0'
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+        SecurityGroupIds: !If
+          - ExistingDatabaseClientSecurityGroup
+          - !Ref DatabaseClientSecurityGroupParameter
+          - !Ref DatabaseClientSecurityGroup
+        SpillBucket: !Ref AthenaSpillBucket
+        SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
   CD2GlueConnection:
     Type: AWS::Glue::Connection

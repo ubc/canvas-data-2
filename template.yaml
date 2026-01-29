@@ -1440,7 +1440,7 @@ Resources:
           DATABASE: "cd2"
           JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
           PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
-          SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
+          #SECRET_ID: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
         AthenaProperties:
           spill_prefix: "cd2-spill"
           #lambda_function_arn: "arn:aws:lambda:ca-central-1:076457905465:function:athenafederatedcatalog_cd2_test"

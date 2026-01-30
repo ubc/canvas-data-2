@@ -1534,22 +1534,22 @@ Resources:
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}'
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
-  CanvasDataCatalog:
-    Type: AWS::Athena::DataCatalog
-    Condition: CreateAthenaConnector
-    Properties:
-      Name: canvas
-      ConnectionType: POSTGRESQL
-      Description: PostgreSQL connector to cd2
-      Type: FEDERATED
-      Parameters:
-        connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}
-        lambda-role-arn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
-      Tags:
-        - Key: !Sub ${TagNameParameter}
-          Value: !Sub ${TagValueParameter}
+  # CanvasDataCatalog:
+  #   Type: AWS::Athena::DataCatalog
+  #   Condition: CreateAthenaConnector
+  #   Properties:
+  #     Name: canvas
+  #     ConnectionType: POSTGRESQL
+  #     Description: PostgreSQL connector to cd2
+  #     Type: FEDERATED
+  #     Parameters:
+  #       connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}
+  #       lambda-role-arn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+  #     Tags:
+  #       - Key: !Sub ${TagNameParameter}
+  #         Value: !Sub ${TagValueParameter}
 
-  CanvasDataCatalogTest:
+  CanvasDataCatalog:
     Type: AWS::Athena::DataCatalog
     Condition: CreateAthenaConnector
     Properties:

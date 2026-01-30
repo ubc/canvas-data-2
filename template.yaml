@@ -1553,7 +1553,7 @@ Resources:
     Type: AWS::Athena::DataCatalog
     Condition: CreateAthenaConnector
     Properties:
-      Name: cd2
+      Name: cd2-canvas
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2
       Type: LAMBDA

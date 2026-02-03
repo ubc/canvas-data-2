@@ -1170,6 +1170,8 @@ Resources:
             Type: Map
             MaxConcurrency: 0 # Run all items (namespaces) concurrently
             ItemsPath: "$.namespaces" # Iterate over the input array from StartNamespaces
+            ItemSelector:
+              namespace.$: "$$.Map.Item.Value"
             ItemProcessor:
               ProcessorConfig:
                 Mode: INLINE

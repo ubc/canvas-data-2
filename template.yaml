@@ -192,7 +192,7 @@ Parameters:
     Default: 'ubcla-canvas-data-2'
 
   NamespaceImportListParameter:
-    Type: CommaDelimitedList
+    Type: String
     Description: Comma delimited string to list Canvas namespaces to import
     Default: "canvas"
 

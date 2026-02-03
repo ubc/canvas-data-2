@@ -1155,6 +1155,8 @@ Resources:
               MaximumWindowInMinutes: 10
             ScheduleExpression: rate(3 hours)
             State: ENABLED
+      DefinitionSubstitutions:
+        CanvasNamespaceList: !Ref NamespaceImportListParameter
       Definition:
         StartAt: StartNamespaces
         States:
@@ -1162,7 +1164,7 @@ Resources:
             Type: Pass
             Next: ProcessNamespaces
             Parameters:
-              namespaces.$: "States.StringSplit($.NamespaceImportListParameter, ',')"
+              namespaces.$: "States.StringSplit('${CanvasNamespaceList}', ',')"
 
           ProcessNamespaces:
             Type: Map

@@ -1161,7 +1161,7 @@ Resources:
           StartNamespaces:
             Type: Pass
             Next: ProcessNamespaces
-            Result:
+            Parameters:
               namespaces: !Ref NamespaceImportListParameter
 
           ProcessNamespaces:

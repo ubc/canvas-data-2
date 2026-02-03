@@ -1162,7 +1162,7 @@ Resources:
             Type: Pass
             Next: ProcessNamespaces
             Parameters:
-              namespaces: !Ref NamespaceImportListParameter
+              namespaces.$: "States.StringSplit($.NamespaceImportListParameter, ',')"
 
           ProcessNamespaces:
             Type: Map

@@ -191,11 +191,10 @@ Parameters:
     Description: (Optional) The Cloudformation stack name of the main Canvas Data 2 Stack.
     Default: 'ubcla-canvas-data-2'
 
-  EnableCatalogNamespaceParameter:
-    Type: String
-    Description: Boolean value to indicate whether to import the data for the Catalog Namespace.
-    AllowedValues: ["true", "false"]
-    Default: "false"
+  NamespaceImportListParameter:
+    Type: CommaDelimitedList
+    Description: Comma delimited string to list Canvas namespaces to import
+    Default: "canvas"
 
 Conditions:
 
@@ -1162,39 +1161,18 @@ Resources:
           StartNamespaces:
             Type: Pass
             Next: ProcessNamespaces
-            Result:
-              - namespace: canvas
-                enableUpdate: true # Always run for 'canvas'
-              - namespace: catalog
-                enableUpdate: !Ref EnableCatalogNamespaceParameter # Read from a CloudFormation Parameter
+            Parameters:
+              namespaces.$: "States.StringSplit($.NamespaceImportListParameter, ',')"
 
           ProcessNamespaces:
             Type: Map
             MaxConcurrency: 0 # Run all items (namespaces) concurrently
-            ItemsPath: "$" # Iterate over the input array from StartNamespaces
+            ItemsPath: "$.namespaces" # Iterate over the input array from StartNamespaces
             ItemProcessor:
               ProcessorConfig:
                 Mode: INLINE
-              StartAt: CheckCatalogUpdate
+              StartAt: TableUpdates
               States:
-                CheckCatalogUpdate:
-                  Type: Choice
-                  Choices:
-                    # Condition 1: The namespace 'canvas' always gets updated.
-                    - Variable: "$.namespace"
-                      StringEquals: canvas
-                      Next: TableUpdates
-                    # Condition 2: If the namespace is 'catalog' AND the enableUpdate variable is FALSE (not true)
-                    - And:
-                        - Variable: "$.namespace"
-                          StringEquals: catalog
-                        - Variable: "$.enableUpdate"
-                          StringEquals: "true"
-                      Next: TableUpdates
-                  Default: SkipUpdates
-                SkipUpdates:
-                  Type: Succeed
-                  Comment: Skipping Catalog updates as requested.
                 # The new container state that groups the data update logic
                 TableUpdates:
                   Type: Parallel
@@ -1553,7 +1531,7 @@ Resources:
     Type: AWS::Athena::DataCatalog
     Condition: CreateAthenaConnector
     Properties:
-      Name: cd2-canvas
+      Name: !Sub ${DatabaseCd2UserParameter}
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2
       Type: LAMBDA

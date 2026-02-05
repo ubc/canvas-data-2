@@ -1432,7 +1432,9 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
+            SSEAlgorithm: aws:kms
+            KMSMasterKeyID:
+              Fn::ImportValue: !Sub ${ResourcePrefixParameter}-lakehouse--keyArn
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

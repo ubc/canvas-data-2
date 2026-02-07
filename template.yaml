@@ -236,6 +236,15 @@ Conditions:
         - Condition: AthenaConnector
         - Condition: CreateDatabase
 
+  IsCatalogNamespaceIncluded: !Or
+    - !Equals [ !Ref NamespaceImportListParameter, "catalog" ]
+    - !Equals [ !Ref NamespaceImportListParameter, "canvas,catalog" ]
+    - !Equals [ !Ref NamespaceImportListParameter, "catalog,canvas" ]
+
+  CreateCatalogAthenaConnector: !And
+    - Condition: AthenaConnector
+    - Condition: IsCatalogNamespaceIncluded
+
 Resources:
 
   SecretsKmsKey:

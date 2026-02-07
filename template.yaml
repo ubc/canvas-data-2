@@ -150,6 +150,11 @@ Parameters:
     Description: (Optional) Name of Athena Connector Lambda. Unused if AthenaConnectorParameter is set to false.
     Default: athena_postgresql_connector_cd2
 
+  AthenaConnectorCatalogLambdaNameParameter:
+    Type: String
+    Description: (Optional) Name of Athena Connector Lambda for CD2-Catalog. Unused if AthenaConnectorParameter is set to false.
+    Default: athena_postgresql_connector_cd2_catalog
+
   NotificationTopicParameter:
     Type: String
     Description: (Optional) SNS topic to send notifications. Leave empty to create a new topic.
@@ -1403,6 +1408,27 @@ Resources:
         SpillBucket: !Ref AthenaSpillBucket
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
+  AthenaPostgreSQLCatalogConnector:
+   Type: AWS::Serverless::Application
+   Condition: CreateCatalogAthenaConnector
+   Properties:
+      Location:
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
+        SemanticVersion: 2025.46.1
+      Parameters:
+        LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
+        CompositeHandler: PostGreSqlMuxCompositeHandler
+        GlueConnection: !Ref CD2CatalogGlueConnection
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
+        DefaultScale: '0'
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+        SecurityGroupIds: !If
+          - ExistingDatabaseClientSecurityGroup
+          - !Ref DatabaseClientSecurityGroupParameter
+          - !Ref DatabaseClientSecurityGroup
+        SpillBucket: !Ref AthenaSpillBucket
+        SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
+
   CD2GlueConnection:
     Type: AWS::Glue::Connection
     Condition: CreateAthenaConnector
@@ -1426,6 +1452,36 @@ Resources:
           PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
         AthenaProperties:
           spill_prefix: "cd2"
+          default_scale: "0"
+          disable_spill_encryption: "false"
+          spill_bucket: !Ref AthenaSpillBucket
+        AuthenticationConfiguration:
+          AuthenticationType: "BASIC"
+          SecretArn: !Ref DatabaseUserSecretAthena
+
+  CD2CatalogGlueConnection:
+    Type: AWS::Glue::Connection
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput:
+        Name: !Sub ${AWS::StackName}-cd2-catalog
+        Description: "Connection to cd2-catalog PostgreSQL"
+        ConnectionType: POSTGRESQL
+        PhysicalConnectionRequirements:
+          SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
+          SecurityGroupIdList:
+            - !If
+              - ExistingDatabaseClientSecurityGroup
+              - !Ref DatabaseClientSecurityGroupParameter
+              - !Ref DatabaseClientSecurityGroup
+        ConnectionProperties:
+          HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
+          DATABASE: "cd2-catalog"
+          JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
+          PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
+        AthenaProperties:
+          spill_prefix: "cd2-catalog"
           default_scale: "0"
           disable_spill_encryption: "false"
           spill_bucket: !Ref AthenaSpillBucket
@@ -1527,6 +1583,31 @@ Resources:
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}'
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
+  AthenaPostgreSQLCatalogConnectorExecutionPolicy:
+    Type: AWS::IAM::Policy
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      Roles:
+      - !Ref AthenaPostgreSQLConnectorRole
+      PolicyName: FunctionExecutionPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/athenafederatedcatalog*
+        - Action:
+          - glue:GetConnection
+          Effect: Allow
+          Resource:
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2CatalogGlueConnection}'
+
   # CanvasDataCatalog:
   #   Type: AWS::Athena::DataCatalog
   #   Condition: CreateAthenaConnector
@@ -1552,6 +1633,20 @@ Resources:
       Type: LAMBDA
       Parameters:
         function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  CatalogDataCatalog:
+    Type: AWS::Athena::DataCatalog
+    Condition: CreateAthenaConnector
+    Properties:
+      Name: !Sub ${DatabaseCd2UserParameter}-catalog
+      ConnectionType: POSTGRESQL
+      Description: PostgreSQL connector to cd2-catalog
+      Type: LAMBDA
+      Parameters:
+        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorCatalogLambdaNameParameter}
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

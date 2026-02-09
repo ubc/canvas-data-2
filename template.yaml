@@ -242,7 +242,7 @@ Conditions:
     - !Equals [ !Ref NamespaceImportListParameter, "catalog,canvas" ]
 
   CreateCatalogAthenaConnector: !And
-    - Condition: CreateAthenaConnector
+    - Condition: AthenaConnector
     - Condition: IsCatalogNamespaceIncluded
 
 Resources:
@@ -1581,7 +1581,6 @@ Resources:
   AthenaPostgreSQLCatalogConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
     Condition: CreateCatalogAthenaConnector
-    DependsOn: AthenaPostgreSQLConnectorRole
     Properties:
       Roles:
       - !Ref AthenaPostgreSQLConnectorRole

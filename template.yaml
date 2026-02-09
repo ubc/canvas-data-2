@@ -1472,11 +1472,11 @@ Resources:
               - !Ref DatabaseClientSecurityGroup
         ConnectionProperties:
           HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
-          DATABASE: "cd2-catalog"
+          DATABASE: "cd2_catalog"
           JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
           PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
         AthenaProperties:
-          spill_prefix: "cd2-catalog"
+          spill_prefix: "cd2_catalog"
           default_scale: "0"
           disable_spill_encryption: "false"
           spill_bucket: !Ref AthenaSpillBucket

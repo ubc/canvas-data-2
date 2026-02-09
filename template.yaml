@@ -1634,7 +1634,7 @@ Resources:
 
   CatalogDataCatalog:
     Type: AWS::Athena::DataCatalog
-    Condition: CreateAthenaConnector
+    Condition: CreateCatalogAthenaConnector
     Properties:
       Name: !Sub ${DatabaseCd2UserParameter}-catalog
       ConnectionType: POSTGRESQL

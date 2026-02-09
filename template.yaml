@@ -150,11 +150,6 @@ Parameters:
     Description: (Optional) Name of Athena Connector Lambda. Unused if AthenaConnectorParameter is set to false.
     Default: athena_postgresql_connector_cd2
 
-  AthenaConnectorCatalogLambdaNameParameter:
-    Type: String
-    Description: (Optional) Name of Athena Connector Lambda for CD2-Catalog. Unused if AthenaConnectorParameter is set to false.
-    Default: athena_postgresql_connector_cd2_catalog
-
   NotificationTopicParameter:
     Type: String
     Description: (Optional) SNS topic to send notifications. Leave empty to create a new topic.
@@ -1416,7 +1411,7 @@ Resources:
         ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
         SemanticVersion: 2025.46.1
       Parameters:
-        LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
+        LambdaFunctionName: !Sub ${AthenaConnectorLambdaNameParameter}_catalog
         CompositeHandler: PostGreSqlMuxCompositeHandler
         GlueConnection: !Ref CD2CatalogGlueConnection
         SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
@@ -1643,10 +1638,10 @@ Resources:
     Properties:
       Name: !Sub ${DatabaseCd2UserParameter}-catalog
       ConnectionType: POSTGRESQL
-      Description: PostgreSQL connector to cd2-catalog
+      Description: PostgreSQL connector to cd2 catalog
       Type: LAMBDA
       Parameters:
-        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorCatalogLambdaNameParameter}
+        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}_catalog
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

@@ -1705,3 +1705,13 @@ Outputs:
     Description: Canvas Data 2 Aurora cluster ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn
+  AuroraClusterEndpoint:
+    Value: !If [ExistingDatabase, '', !GetAtt AuroraDatabaseCluster.Endpoint.Address]
+    Description: Canvas Data 2 Aurora cluster ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-address
+  AuroraClusterPort:
+    Value: !If [ExistingDatabase, '', !GetAtt AuroraDatabaseCluster.Endpoint.Port]
+    Description: Canvas Data 2 Aurora cluster ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-port

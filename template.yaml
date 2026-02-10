@@ -1594,7 +1594,7 @@ Resources:
 
   AthenaPostgreSQLCatalogConnectorRole:
     Type: AWS::IAM::Role
-    Condition: CreatePrimaryCanvasAthenaConnector
+    Condition: CreateCatalogAthenaConnector
     Properties:
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole

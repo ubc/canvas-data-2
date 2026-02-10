@@ -1515,7 +1515,7 @@ Resources:
 
   AthenaPostgreSQLConnectorRole:
     Type: AWS::IAM::Role
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
@@ -1534,7 +1534,7 @@ Resources:
 
   AthenaPostgreSQLConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       Roles:
       - !Ref AthenaPostgreSQLConnectorRole
@@ -1592,16 +1592,39 @@ Resources:
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}'
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
+  AthenaPostgreSQLCatalogConnectorRole:
+    Type: AWS::IAM::Role
+    Condition: CreatePrimaryCanvasAthenaConnector
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
   AthenaPostgreSQLCatalogConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
     Condition: CreateCatalogAthenaConnector
     Properties:
       Roles:
-      - !Ref AthenaPostgreSQLConnectorRole
+      - !Ref AthenaPostgreSQLCatalogConnectorRole
       PolicyName: FunctionExecutionPolicy
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+        - Effect: Allow
+          Action:
+          - secretsmanager:GetSecretValue
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ResourcePrefixParameter}-canvas-data-2-cd2-db-user-${EnvironmentParameter}-athena*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup
@@ -1611,11 +1634,44 @@ Resources:
           - logs:CreateLogStream
           - logs:PutLogEvents
           Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/athenafederatedcatalog*
+        - Effect: Allow
+          Action:
+            - athena:GetQueryExecution
+            - s3:ListAllMyBuckets
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - ec2:CreateNetworkInterface
+          - ec2:DeleteNetworkInterface
+          - ec2:DescribeNetworkInterfaces
+          - ec2:DetachNetworkInterface
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:GetBucketLocation
+          - s3:GetObjectVersion
+          - s3:PutObject
+          - s3:PutObjectAcl
+          - s3:GetLifecycleConfiguration
+          - s3:PutLifecycleConfiguration
+          - s3:DeleteObject
+          Resource:
+            - Fn::ImportValue:
+                Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
+            - Fn::ImportValue:
+                Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket/*
+        - Effect: Allow
+          Action:
+          - kms:Decrypt
+          Resource: !GetAtt SecretsKmsKey.Arn
         - Action:
           - glue:GetConnection
           Effect: Allow
           Resource:
             - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2CatalogGlueConnection}'
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
   # CanvasDataCatalog:
   #   Type: AWS::Athena::DataCatalog
@@ -1726,3 +1782,8 @@ Outputs:
     Description: Canvas Data 2 Aurora cluster ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-port
+  AthenaSpillBucketArn:
+    Value: !If [ExistingDatabase, '', !GetAtt AthenaSpillBucket.Arn]
+    Description: Canvas Data 2 Athena S3 Spill Bucket ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-athena-spill-bucket

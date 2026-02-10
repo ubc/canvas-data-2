@@ -1479,10 +1479,14 @@ Resources:
               - !Ref DatabaseClientSecurityGroupParameter
               - !Ref DatabaseClientSecurityGroup
         ConnectionProperties:
-          HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
+          HOST:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-endpoint-address
           DATABASE: "cd2_catalog"
           JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
-          PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
+          PORT:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-endpoint-port
         AthenaProperties:
           spill_prefix: "cd2_catalog"
           default_scale: "0"

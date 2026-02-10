@@ -1494,7 +1494,9 @@ Resources:
           spill_bucket: !Ref AthenaSpillBucket
         AuthenticationConfiguration:
           AuthenticationType: "BASIC"
-          SecretArn: !Ref DatabaseUserSecretAthena
+          SecretArn:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-db-athena-secret-arn
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket
@@ -1704,6 +1706,11 @@ Outputs:
     Description: Canvas Data 2 database user secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
+  DatabaseUserSecretAthenaArn:
+    Value: !Ref DatabaseUserSecretAthena
+    Description: Canvas Data 2 database Athena secret ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-athena-secret-arn
   AuroraClusterArn:
     Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
     Description: Canvas Data 2 Aurora cluster ARN

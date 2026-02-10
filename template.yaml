@@ -1392,7 +1392,7 @@ Resources:
 
   AthenaPostgreSQLConnector:
    Type: AWS::Serverless::Application
-   Condition: CreateAthenaConnector
+   Condition: CreatePrimaryCanvasAthenaConnector
    Properties:
       Location:
         ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
@@ -1424,12 +1424,14 @@ Resources:
         GlueConnection: !Ref CD2CatalogGlueConnection
         SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
         DefaultScale: '0'
-        LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLCatalogConnectorRole.Arn
         SecurityGroupIds: !If
           - ExistingDatabaseClientSecurityGroup
           - !Ref DatabaseClientSecurityGroupParameter
           - !Ref DatabaseClientSecurityGroup
-        SpillBucket: !Ref AthenaSpillBucket
+        SpillBucket:
+          Fn::ImportValue:
+            Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
 
   CD2GlueConnection:
@@ -1491,7 +1493,9 @@ Resources:
           spill_prefix: "cd2_catalog"
           default_scale: "0"
           disable_spill_encryption: "false"
-          spill_bucket: !Ref AthenaSpillBucket
+          spill_bucket:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
         AuthenticationConfiguration:
           AuthenticationType: "BASIC"
           SecretArn:

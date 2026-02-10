@@ -1434,7 +1434,7 @@ Resources:
 
   CD2GlueConnection:
     Type: AWS::Glue::Connection
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       CatalogId: !Ref AWS::AccountId
       ConnectionInput:
@@ -1500,7 +1500,7 @@ Resources:
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       BucketName: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
@@ -1663,7 +1663,7 @@ Resources:
   # Secret for PostgreSQL Athena connector "athena" user
   DatabaseUserSecretAthena:
     Type: AWS::SecretsManager::Secret
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
@@ -1680,7 +1680,7 @@ Resources:
   # Attach Athena database user secret to the cluster
   DatabaseUserSecretAttachmentAthena:
     Type: AWS::SecretsManager::SecretTargetAttachment
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       SecretId: !Ref DatabaseUserSecretAthena
       TargetId: !Ref AuroraDatabaseCluster

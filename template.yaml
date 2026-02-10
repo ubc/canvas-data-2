@@ -232,7 +232,7 @@ Conditions:
   # Creates an Athena data source allowing CD2 data to be joined with other data sources
   # Requires CreateDatabase condition to be true to ensure cluster endpoint and port exist
   AthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
-  CreatePrimaryCanvasAthenaConnector: !And
+  CreateAthenaConnector: !And
     - Condition: AthenaConnector
     - Condition: CreateDatabase
 
@@ -240,14 +240,6 @@ Conditions:
     - !Equals [ !Ref NamespaceImportListParameter, "catalog" ]
     - !Equals [ !Ref NamespaceImportListParameter, "canvas,catalog" ]
     - !Equals [ !Ref NamespaceImportListParameter, "catalog,canvas" ]
-
-  CreateAdditionalPrimaryCanvasAthenaConnector: !And
-    - Condition: ExistingDatabase
-    - Condition: AthenaConnector
-
-  CreateAthenaConnector: !Or
-      - Condition: CreatePrimaryCanvasAthenaConnector
-      - Condition: CreateAdditionalPrimaryCanvasAthenaConnector
 
   CreateCatalogAthenaConnector: !And
     - Condition: ExistingDatabase

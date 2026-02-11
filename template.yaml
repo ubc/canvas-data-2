@@ -1668,7 +1668,7 @@ Resources:
               - ${AthenaS3SpillBucketArn}/*
               - AthenaS3SpillBucketArn:
                   Fn::ImportValue:
-                    Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket/*
+                    Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
         - Effect: Allow
           Action:
           - kms:Decrypt

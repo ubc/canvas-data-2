@@ -1669,7 +1669,9 @@ Resources:
         - Effect: Allow
           Action:
           - kms:Decrypt
-          Resource: !GetAtt SecretsKmsKey.Arn
+          Resource:
+            - Fn::ImportValue:
+                Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-secrets-kms-key-arn
         - Action:
           - glue:GetConnection
           Effect: Allow
@@ -1756,6 +1758,11 @@ Resources:
         - python3.12
 
 Outputs:
+  SecretsKmsKeyArn:
+    Value: !If [ExistingDatabaseAdminSecret, '', !GetAtt SecretsKmsKey.Arn]
+    Description: Canvas Data 2 Secrets KMS key ARN
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-arn
   DatabaseAdminSecretArn:
     Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
     Description: Canvas Data 2 database admin user secret ARN

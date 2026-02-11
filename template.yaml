@@ -1760,8 +1760,9 @@ Resources:
 
 Outputs:
   SecretsKmsKeyArn:
-    Value: !If [ExistingDatabaseAdminSecret, '', !GetAtt SecretsKmsKey.Arn]
+    Value: !GetAtt SecretsKmsKey.Arn
     Description: Canvas Data 2 Secrets KMS key ARN
+    Condition: CreateDatabase
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-arn
   DatabaseAdminSecretArn:
@@ -1775,8 +1776,9 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
   DatabaseUserSecretAthenaArn:
-    Value: !If [ExistingDatabase, '', !Ref DatabaseUserSecretAthena]
+    Value: !Ref DatabaseUserSecretAthena
     Description: Canvas Data 2 database Athena secret ARN
+    Condition: CreateDatabase
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-athena-secret-arn
   AuroraClusterArn:
@@ -1785,17 +1787,20 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn
   AuroraClusterEndpoint:
-    Value: !If [ExistingDatabase, '', !GetAtt AuroraDatabaseCluster.Endpoint.Address]
+    Value: !GetAtt AuroraDatabaseCluster.Endpoint.Address
     Description: Canvas Data 2 Aurora cluster ARN
+    Condition: CreateDatabase
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-address
   AuroraClusterPort:
-    Value: !If [ExistingDatabase, '', !GetAtt AuroraDatabaseCluster.Endpoint.Port]
+    Value: !GetAtt AuroraDatabaseCluster.Endpoint.Port
     Description: Canvas Data 2 Aurora cluster ARN
+    Condition: CreateDatabase
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-port
   AthenaSpillBucketArn:
     Value: !If [ExistingDatabase, '', !GetAtt AthenaSpillBucket.Arn]
     Description: Canvas Data 2 Athena S3 Spill Bucket ARN
+    Condition: CreatePrimaryCanvasAthenaConnector
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-athena-spill-bucket

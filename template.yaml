@@ -1493,9 +1493,7 @@ Resources:
           spill_prefix: "cd2_catalog"
           default_scale: "0"
           disable_spill_encryption: "false"
-          spill_bucket:
-            Fn::ImportValue:
-              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
+          spill_bucket: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
         AuthenticationConfiguration:
           AuthenticationType: "BASIC"
           SecretArn:

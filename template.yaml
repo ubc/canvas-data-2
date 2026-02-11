@@ -1774,7 +1774,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
   DatabaseUserSecretAthenaArn:
-    Value: !Ref DatabaseUserSecretAthena
+    Value: !If [ExistingDatabase, '', !Ref DatabaseUserSecretAthena]
     Description: Canvas Data 2 database Athena secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-athena-secret-arn

@@ -1762,7 +1762,7 @@ Resources:
         ExcludePunctuation: true
       KmsKeyId:
         Fn::ImportValue:
-          Fn::Sub: ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-id
+          Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-secrets-kms-key-id
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1775,7 +1775,7 @@ Resources:
       SecretId: !Ref DatabaseUserSecretAthenaCatalog
       TargetId:
         Fn::ImportValue:
-          Fn::Sub: ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-identifier
+          Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-identifier
       TargetType: AWS::RDS::DBCluster
 
   LambdaLayer:

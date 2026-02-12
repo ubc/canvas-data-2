@@ -1800,6 +1800,12 @@ Outputs:
     Description: Canvas Data 2 database user secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
+  DatabaseUserSecretAthenaArn:
+    Value: !Ref DatabaseUserSecretAthena
+    Description: Canvas Data 2 database Athena secret ARN
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-athena-secret-arn
   AuroraClusterArn:
     Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
     Description: Canvas Data 2 Aurora cluster ARN

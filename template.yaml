@@ -1760,7 +1760,9 @@ Resources:
         GenerateStringKey: password
         PasswordLength: 128
         ExcludePunctuation: true
-      KmsKeyId: !Ref SecretsKmsKey
+      KmsKeyId:
+        Fn::ImportValue:
+          Fn::Sub: ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-id
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1792,6 +1794,12 @@ Outputs:
     Condition: CreateDatabase
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-arn
+  SecretsKmsKeyId:
+    Value: !Ref SecretsKmsKey
+    Description: Canvas Data 2 Secrets KMS key ID
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-id
   DatabaseAdminSecretArn:
     Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
     Description: Canvas Data 2 database admin user secret ARN

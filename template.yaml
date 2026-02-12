@@ -1771,7 +1771,9 @@ Resources:
     Condition: CreateCatalogAthenaConnector
     Properties:
       SecretId: !Ref DatabaseUserSecretAthenaCatalog
-      TargetId: !Ref AuroraDatabaseCluster
+      TargetId:
+        Fn::ImportValue:
+          Fn::Sub: ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-identifier
       TargetType: AWS::RDS::DBCluster
 
   LambdaLayer:
@@ -1811,6 +1813,12 @@ Outputs:
     Description: Canvas Data 2 Aurora cluster ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn
+  AuroraClusterDBClusterIdentifier:
+    Value: !Ref AuroraDatabaseCluster
+    Description: Canvas Data 2 Aurora cluster DB Cluster Identifier
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-identifier
   AuroraClusterEndpoint:
     Value: !GetAtt AuroraDatabaseCluster.Endpoint.Address
     Description: Canvas Data 2 Aurora cluster ARN

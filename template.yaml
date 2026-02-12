@@ -1751,7 +1751,7 @@ Resources:
 
   DatabaseUserSecretAthenaCatalog:
     Type: AWS::SecretsManager::Secret
-    Condition: CreatePrimaryCanvasAthenaConnector
+    Condition: CreateCatalogAthenaConnector
     Properties:
       Name: !Sub ${AWS::StackName}-cd2-catalog-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector for the catalog instance
@@ -1768,7 +1768,7 @@ Resources:
   # Attach Athena database user secret for the canvas catalog instance to the cluster
   DatabaseUserSecretAttachmentAthenaCatalog:
     Type: AWS::SecretsManager::SecretTargetAttachment
-    Condition: CreatePrimaryCanvasAthenaConnector
+    Condition: CreateCatalogAthenaConnector
     Properties:
       SecretId: !Ref DatabaseUserSecretAthenaCatalog
       TargetId: !Ref AuroraDatabaseCluster

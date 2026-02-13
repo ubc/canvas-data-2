@@ -1751,7 +1751,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Condition: CreateCatalogAthenaConnector
     Properties:
-      Name: !Sub ${AWS::StackName}-cd2-catalog-db-user-${EnvironmentParameter}-athena
+      Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog
       Description: Database user for Athena PostgreSQL connector for the catalog instance
       GenerateSecretString:
         SecretStringTemplate: !Sub '{"username": "athena_catalog"}'

@@ -1422,7 +1422,7 @@ Resources:
         LambdaFunctionName: !Sub ${AthenaConnectorLambdaNameParameter}_catalog
         CompositeHandler: PostGreSqlMuxCompositeHandler
         GlueConnection: !Ref CD2CatalogGlueConnection
-        SecretName: !Sub ${AWS::StackName}-cd2-catalog-db-user-${EnvironmentParameter}-athena
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog
         DefaultScale: '0'
         LambdaRoleArn: !GetAtt AthenaPostgreSQLCatalogConnectorRole.Arn
         SecurityGroupIds: !If
@@ -1624,7 +1624,7 @@ Resources:
         - Effect: Allow
           Action:
           - secretsmanager:GetSecretValue
-          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-cd2-catalog-db-user-${EnvironmentParameter}-athena*
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog*
         - Effect: Allow
           Action:
           - logs:CreateLogGroup

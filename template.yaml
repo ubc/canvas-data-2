@@ -1754,7 +1754,7 @@ Resources:
       Name: !Sub ${AWS::StackName}-cd2-catalog-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector for the catalog instance
       GenerateSecretString:
-        SecretStringTemplate: !Sub '{"username": "athena"}'
+        SecretStringTemplate: !Sub '{"username": "athena_catalog"}'
         GenerateStringKey: password
         PasswordLength: 128
         ExcludePunctuation: true

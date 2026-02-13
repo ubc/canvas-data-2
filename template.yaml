@@ -1496,9 +1496,7 @@ Resources:
           spill_bucket: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
         AuthenticationConfiguration:
           AuthenticationType: "BASIC"
-          SecretArn:
-            Fn::ImportValue:
-              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-db-athena-secret-arn
+          SecretArn: !Ref DatabaseUserSecretAthenaCatalog
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket

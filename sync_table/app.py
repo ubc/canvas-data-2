@@ -222,7 +222,6 @@ if __name__ == "__main__":
                 taskToken=token,
                 error=f'{err}'
             )
-        #raise err
 
 """
     if token and result['state'] == 'failed':

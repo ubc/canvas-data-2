@@ -12,6 +12,12 @@ parser.add_argument(
     help="The name of the Canvas Data 2 CloudFormation stack containing the Aurora database",
     required=True,
 )
+parser.add_argument(
+    "--schema",
+    help="The names of the Canvas Data 2 schemas to import",
+    nargs='+',
+    required=True,
+)
 args = parser.parse_args()
 
 console = Console()
@@ -55,6 +61,7 @@ role_privileges = {
 # Define user-role mapping
 user_roles = {
     "athena": "read_only",
+    "athena_catalog": "read_only",
     db_user_username: "admin"
 }
 
@@ -169,7 +176,7 @@ for s in user_secrets["SecretList"]:
     grant_user_to_admin(username, admin_username, database_name)
 
     # Create schema for user (with them as owner) if they need a schema
-    if username in users_to_create_schema:
+    if username in users_to_create_schema and "athena" not in username:
         create_schema('canvas', username, database_name)
 
         # ToDo: perhaps add a parameter to indicate whether the `catalog` schema needs to be created.
@@ -186,7 +193,7 @@ for s in user_secrets["SecretList"]:
     user_role = get_user_role(username)
 
     grant_usage_to_schema(username, 'canvas', database_name)
-    assign_privileges(username, username, user_role, database_name)
+    assign_privileges(username, 'canvas', user_role, database_name)
 
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)

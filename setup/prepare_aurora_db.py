@@ -13,8 +13,8 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
-    "--schema",
-    help="The names of the Canvas Data 2 schemas to import",
+    "--namespace",
+    help="The name(s) of the Canvas Data 2 namespace(s) to import",
     nargs='+',
     required=True,
 )
@@ -27,7 +27,7 @@ secrets_client = boto3.client("secretsmanager")
 rds_data_client = boto3.client("rds-data")
 cf_resource = boto3.resource("cloudformation")
 stack = cf_resource.Stack(args.stack_name)
-namespaces = args.schema
+namespaces = args.namespaces
 
 console.print("Starting database preparation", style="bold green")
 

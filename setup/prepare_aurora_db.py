@@ -27,6 +27,7 @@ secrets_client = boto3.client("secretsmanager")
 rds_data_client = boto3.client("rds-data")
 cf_resource = boto3.resource("cloudformation")
 stack = cf_resource.Stack(args.stack_name)
+namespaces = args.schema
 
 console.print("Starting database preparation", style="bold green")
 
@@ -177,11 +178,8 @@ for s in user_secrets["SecretList"]:
 
     # Create schema for user (with them as owner) if they need a schema
     if username in users_to_create_schema and "athena" not in username:
-        create_schema('canvas', username, database_name)
-
-        # ToDo: perhaps add a parameter to indicate whether the `catalog` schema needs to be created.
-        if 'catalog' in username:
-            create_schema('catalog', username, database_name)
+        for namespace in namespaces:
+            create_schema(namespace, username, database_name)
 
     # Create instructure_dap schema for the CD2 database user with them as owner
     #if username == db_user_username:
@@ -192,15 +190,12 @@ for s in user_secrets["SecretList"]:
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
 
-    grant_usage_to_schema(username, 'canvas', database_name)
-    assign_privileges(username, 'canvas', user_role, database_name)
+    for namespace in namespaces:
+        grant_usage_to_schema(username, namespace, database_name)
+        assign_privileges(username, namespace, user_role, database_name)
 
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)
-
-    if 'catalog' in username:
-        grant_usage_to_schema(username, "catalog", database_name)
-        assign_privileges(username, "catalog", user_role, database_name)
 
     # Grant the CREATE privilege on the cd2 database.
     grant_create_permission_on_db_to_db_user(username, database_name)

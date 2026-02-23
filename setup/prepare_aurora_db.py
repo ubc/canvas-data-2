@@ -13,7 +13,7 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
-    "--namespace",
+    "--namespaces",
     help="The name(s) of the Canvas Data 2 namespace(s) to import",
     nargs='+',
     required=True,

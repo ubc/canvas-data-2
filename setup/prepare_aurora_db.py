@@ -182,7 +182,6 @@ for s in user_secrets["SecretList"]:
             create_schema(namespace, username, database_name)
 
     # Create instructure_dap schema for the CD2 database user with them as owner
-    #if username == db_user_username:
     if username in users_to_create_schema:
         create_schema("instructure_dap", username, database_name)
 

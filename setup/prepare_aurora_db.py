@@ -191,6 +191,9 @@ for s in user_secrets["SecretList"]:
     user_role = get_user_role(username)
 
     for namespace in namespaces:
+        if 'catalog' in namespace and username == 'athena_catalog':
+            database_name += '_catalog'
+
         grant_usage_to_schema(username, namespace, database_name)
         assign_privileges(username, namespace, user_role, database_name)
 

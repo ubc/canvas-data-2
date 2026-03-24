@@ -24,8 +24,6 @@ param_path = f'/{env}/{ssm_parameter_name}'
 
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 
-namespace = db_user
-
 REGION = os.environ["AWS_REGION"]
 SLACK_WEBHOOK_URL_SECRET_NAME = os.getenv("SLACK_WEBHOOK_SECRET_NAME")
 STACK_NAME =  os.environ["STACK_NAME"]
@@ -54,12 +52,13 @@ def lambda_handler(event, context: LambdaContext):
 
         os.chdir("/tmp/")
 
+        namespace = event["namespace"]
         tables = asyncio.get_event_loop().run_until_complete(async_get_tables(api_base_url, credentials, namespace))
 
         # we can skip certain tables if necessary by setting an environment variable (comma-separated list)
         skip_tables = os.environ.get('SKIP_TABLES', '').split(',')
 
-        tmap = list(map(lambda t: {'table_name': t, "state": "needs_sync"}, [t for t in tables if t not in skip_tables]))
+        tmap = list(map(lambda t: {'table_name': t, "state": "needs_sync", "namespace": namespace}, [t for t in tables if t not in skip_tables]))
 
         return {'tables': tmap}
     except Exception as e:

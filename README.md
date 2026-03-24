@@ -87,20 +87,18 @@ After deploying the SAM app, run this script. You must have valid AWS credential
 
 ```
 pip install setup/requirements.txt -r
-./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment>
+./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment> --schemas <list of schema names separated by an empty space>
 ```
 
 #### (Optional) If you are creating a new database user and schema for an additional Canvas instance:
 1. If you create a new cloudformation stack for an additional Canvas instance, you need to modify `secret_name_prefix` so that it can target the correct secrets for the RDS database credential for the new DB user.
 
-2. When you run the `prepare_aurora_db.py` script, add `--is-additional-stack` argument.
-
 ```
 pip install setup/requirements.txt -r
-./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment> --is-additional-stack
+./setup/prepare_aurora_db.py --stack-name <stack name returned by the SAM deployment> --schemas <list of schema names separated by an empty space>
 ```
 
-3. You need to grant the access to the new schema for the database user `athena`.
+2. If You need to grant the access to the new schema for the database user `athena` manually:
 - You need to run the following queries in order for the Athena connector to access all tables in the new schema:
   - `GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO athena;`
   - `GRANT USAGE ON SCHEMA catalog TO athena;`

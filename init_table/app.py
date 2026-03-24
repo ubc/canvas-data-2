@@ -40,7 +40,7 @@ def start(event):
     db_name = db_user_secret['dbname']
     db_host = db_user_secret['host']
     db_port = db_user_secret['port']
-    namespace = db_user
+    namespace = os.environ.get('CD2_NAMESPACE', 'canvas')
 
     conn_str = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=verify-ca&sslrootcert=rds-combined-ca-bundle.pem"
     db_connection = DatabaseConnection(connection_string=conn_str)
@@ -58,6 +58,11 @@ def start(event):
         )
 
         event['state'] = 'complete'
+
+        # Remove the error message from the sync_table job because it is not necessary after the successful table initialization.
+        if "error_message" in event and "sync_table - needs_init" in event["error_message"]:
+            del event["error_message"]
+
     except Exception as e:
         logger.exception(e)
         event['state'] = 'failed'
@@ -72,7 +77,7 @@ async def init_table(credentials, api_base_url, db_connection, namespace, table_
         await SQLReplicator(session, db_connection).initialize(namespace, table_name)
 
 if __name__ == "__main__":
-    event = json.loads(os.environ.get('TABLE_NAME'))
+    event = json.loads(os.environ.get('TABLE_EVENT'))
     token = os.environ.get('TASK_TOKEN')
 
     payload = None

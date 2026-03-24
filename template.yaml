@@ -191,6 +191,11 @@ Parameters:
     Description: (Optional) The Cloudformation stack name of the main Canvas Data 2 Stack.
     Default: 'ubcla-canvas-data-2'
 
+  NamespaceImportListParameter:
+    Type: String
+    Description: Comma delimited string to list Canvas namespaces to import
+    Default: "canvas"
+
 Conditions:
 
   # Conditions for Bring Your Own Aurora Database Cluster
@@ -227,9 +232,26 @@ Conditions:
   # Creates an Athena data source allowing CD2 data to be joined with other data sources
   # Requires CreateDatabase condition to be true to ensure cluster endpoint and port exist
   AthenaConnector: !Equals [true, !Ref AthenaConnectorParameter]
-  CreateAthenaConnector: !And
-        - Condition: AthenaConnector
-        - Condition: CreateDatabase
+  CreatePrimaryCanvasAthenaConnector: !And
+    - Condition: AthenaConnector
+    - Condition: CreateDatabase
+
+  IsCatalogNamespaceIncluded: !Or
+    - !Equals [ !Ref NamespaceImportListParameter, "catalog" ]
+    - !Equals [ !Ref NamespaceImportListParameter, "canvas,catalog" ]
+    - !Equals [ !Ref NamespaceImportListParameter, "catalog,canvas" ]
+
+  CreateAdditionalPrimaryCanvasAthenaConnector: !And
+    - Condition: ExistingDatabase
+    - Condition: AthenaConnector
+
+  CreateAthenaConnector: !Or
+      - Condition: CreatePrimaryCanvasAthenaConnector
+      - Condition: CreateAdditionalPrimaryCanvasAthenaConnector
+
+  CreateCatalogAthenaConnector: !And
+    - Condition: ExistingDatabase
+    - Condition: IsCatalogNamespaceIncluded
 
 Resources:
 
@@ -1150,177 +1172,213 @@ Resources:
               MaximumWindowInMinutes: 10
             ScheduleExpression: rate(3 hours)
             State: ENABLED
+      DefinitionSubstitutions:
+        CanvasNamespaceList: !Ref NamespaceImportListParameter
       Definition:
-        StartAt: ListTables
+        StartAt: StartNamespaces
         States:
-          ListTables:
-            Type: Task
-            Resource: arn:aws:states:::lambda:invoke
-            OutputPath: "$.Payload"
+          StartNamespaces:
+            Type: Pass
+            Next: ProcessNamespaces
             Parameters:
-              Payload.$: "$"
-              FunctionName: !Ref ListTablesFunction
-            Retry:
-              - ErrorEquals:
-                 - Lambda.ServiceException
-                 - Lambda.AWSLambdaException
-                 - Lambda.SdkClientException
-                 - Lambda.TooManyRequestsException
-                IntervalSeconds: 2
-                MaxAttempts: 6
-                BackoffRate: 6
-            Next: ProcessTables
-          ProcessTables:
+              namespaces.$: "States.StringSplit('${CanvasNamespaceList}', ',')"
+
+          ProcessNamespaces:
             Type: Map
-            MaxConcurrency: 15
-            ItemsPath: "$.tables"
-            Next: PivotResults
+            MaxConcurrency: 0 # Run all items (namespaces) concurrently
+            ItemsPath: "$.namespaces" # Iterate over the input array from StartNamespaces
+            ItemSelector:
+              namespace.$: "$$.Map.Item.Value"
             ItemProcessor:
               ProcessorConfig:
                 Mode: INLINE
-              StartAt: SyncTable
+              StartAt: TableUpdates
               States:
-                SyncTable:
-                  Type: Task
-                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
-                  Parameters:
-                    LaunchType: FARGATE
-                    Cluster: !Ref FargateCluster
-                    TaskDefinition: !Ref SyncTableTaskDefinition
-                    NetworkConfiguration:
-                      AwsvpcConfiguration:
-                        AssignPublicIp: DISABLED
-                        SecurityGroups:
-                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
-                        Subnets:
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-                    Overrides:
-                      ContainerOverrides:
-                      - Name: !Sub ${AWS::StackName}-SyncTable
-                        Environment:
-                        - Name: TASK_TOKEN
-                          Value.$: $$.Task.Token
-                        - Name: TABLE_NAME
-                          Value.$: States.JsonToString($)
-                        - Name: ENV
-                          Value: !Ref EnvironmentParameter
-                        - Name: LOG_LEVEL
-                          Value: !Ref LogLevel
-                        - Name: POWERTOOLS_METRICS_NAMESPACE
-                          Value: canvas-data-2
-                        - Name: POWERTOOLS_SERVICE_NAME
-                          Value: sync_table
-                        - Name: DB_USER_SECRET_NAME
-                          Value: !Ref DatabaseUserSecretCanvas
-                        - Name: ADMIN_SECRET_ARN
-                          Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
-                        - Name: DB_CLUSTER_ARN
-                          Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
-                        - Name: SSM_PARAMETER_NAME
-                          Value: !Sub ${SsmPathParameter}
-                  TimeoutSeconds: 43200
-                  Retry:
-                    - ErrorEquals:
-                      - ECS.ServiceException
-                      - ECS.ThrottlingException
-                      - ECS.ClientException
-                      - ECS.ClusterNotFoundException
-                      - ECS.TaskSetNotFoundException
-                      - ECS.AmazonECSException
-                      IntervalSeconds: 2
-                      MaxAttempts: 6
-                      BackoffRate: 6
-                  Catch:
-                    - ErrorEquals:
-                      - States.TaskFailed
-                      ResultPath: "$.error"
-                      Next: TableFailed
-                  Next: CheckSyncState
-                CheckSyncState:
-                  Type: Choice
-                  Choices:
-                    - Variable: "$.Payload.state"
-                      StringEquals: needs_init
-                      Next: InitTable
-                  Default: TableComplete
-                InitTable:
-                  Type: Task
-                  Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
-                  Parameters:
-                    LaunchType: FARGATE
-                    Cluster: !Ref FargateCluster
-                    TaskDefinition: !Ref InitTableTaskDefinition
-                    NetworkConfiguration:
-                      AwsvpcConfiguration:
-                        AssignPublicIp: DISABLED
-                        SecurityGroups:
-                        - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
-                        Subnets:
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
-                        - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
-                    Overrides:
-                      ContainerOverrides:
-                      - Name: !Sub ${AWS::StackName}-InitTable
-                        Environment:
-                        - Name: TASK_TOKEN
-                          Value.$: $$.Task.Token
-                        - Name: TABLE_NAME
-                          Value.$: States.JsonToString($.Payload)
-                        - Name: ENV
-                          Value: !Ref EnvironmentParameter
-                        - Name: LOG_LEVEL
-                          Value: !Ref LogLevel
-                        - Name: POWERTOOLS_METRICS_NAMESPACE
-                          Value: canvas-data-2
-                        - Name: POWERTOOLS_SERVICE_NAME
-                          Value: init_table
-                        - Name: DB_USER_SECRET_NAME
-                          Value: !Ref DatabaseUserSecretCanvas
-                        - Name: SSM_PARAMETER_NAME
-                          Value: !Sub ${SsmPathParameter}
-                  TimeoutSeconds: 43200
-                  Retry:
-                    - ErrorEquals:
-                      - ECS.ServiceException
-                      - ECS.ThrottlingException
-                      - ECS.ClientException
-                      - ECS.ClusterNotFoundException
-                      - ECS.TaskSetNotFoundException
-                      - ECS.AmazonECSException
-                      IntervalSeconds: 2
-                      MaxAttempts: 6
-                      BackoffRate: 6
-                  Catch:
-                    - ErrorEquals:
-                      - States.TaskFailed
-                      ResultPath: "$.error"
-                      Next: TableFailed
-                  Next: CheckInitState
-                CheckInitState:
-                  Type: Choice
-                  Choices:
-                    - Variable: "$.Payload.state"
-                      StringEquals: failed
-                      Next: TableFailed
-                  Default: TableComplete
-                TableFailed:
-                  Type: Pass
-                  OutputPath: "$.Payload"
-                  End: true
-                TableComplete:
+                # The new container state that groups the data update logic
+                TableUpdates:
+                  Type: Parallel
+                  Next: TableUpdatesComplete
+                  Branches:
+                    - StartAt: ListTables
+                      States:
+                        # Core Workflow
+                        ListTables:
+                          Type: Task
+                          Resource: arn:aws:states:::lambda:invoke
+                          OutputPath: "$.Payload"
+                          Parameters:
+                            Payload:
+                              namespace.$: $.namespace
+                              input.$: $
+                            FunctionName: !Ref ListTablesFunction
+                          Retry:
+                            - ErrorEquals:
+                              - Lambda.ServiceException
+                              - Lambda.AWSLambdaException
+                              - Lambda.SdkClientException
+                              - Lambda.TooManyRequestsException
+                              IntervalSeconds: 2
+                              MaxAttempts: 6
+                              BackoffRate: 6
+                          Next: ProcessTables
+                        ProcessTables:
+                          Type: Map
+                          MaxConcurrency: 15
+                          ItemsPath: "$.tables"
+                          Next: PivotResults
+                          ItemProcessor:
+                            ProcessorConfig:
+                              Mode: INLINE
+                            StartAt: SyncTable
+                            States:
+                              SyncTable:
+                                Type: Task
+                                Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
+                                Parameters:
+                                  LaunchType: FARGATE
+                                  Cluster: !Ref FargateCluster
+                                  TaskDefinition: !Ref SyncTableTaskDefinition
+                                  NetworkConfiguration:
+                                    AwsvpcConfiguration:
+                                      AssignPublicIp: DISABLED
+                                      SecurityGroups:
+                                      - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
+                                      Subnets:
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+                                  Overrides:
+                                    ContainerOverrides:
+                                    - Name: !Sub ${AWS::StackName}-SyncTable
+                                      Environment:
+                                      - Name: TASK_TOKEN
+                                        Value.$: $$.Task.Token
+                                      - Name: TABLE_NAME
+                                        Value.$: States.JsonToString($)
+                                      - Name: ENV
+                                        Value: !Ref EnvironmentParameter
+                                      - Name: LOG_LEVEL
+                                        Value: !Ref LogLevel
+                                      - Name: POWERTOOLS_METRICS_NAMESPACE
+                                        Value: canvas-data-2
+                                      - Name: POWERTOOLS_SERVICE_NAME
+                                        Value: sync_table
+                                      - Name: DB_USER_SECRET_NAME
+                                        Value: !Ref DatabaseUserSecretCanvas
+                                      - Name: ADMIN_SECRET_ARN
+                                        Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
+                                      - Name: DB_CLUSTER_ARN
+                                        Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
+                                      - Name: SSM_PARAMETER_NAME
+                                        Value: !Sub ${SsmPathParameter}
+                                      - Name: CD2_NAMESPACE
+                                        Value.$: $.namespace
+                                TimeoutSeconds: 43200
+                                Retry:
+                                  - ErrorEquals:
+                                    - ECS.ServiceException
+                                    - ECS.ThrottlingException
+                                    - ECS.ClientException
+                                    - ECS.ClusterNotFoundException
+                                    - ECS.TaskSetNotFoundException
+                                    - ECS.AmazonECSException
+                                    IntervalSeconds: 2
+                                    MaxAttempts: 6
+                                    BackoffRate: 6
+                                Catch:
+                                  - ErrorEquals:
+                                    - States.TaskFailed
+                                    ResultPath: "$.error"
+                                    Next: TableFailed
+                                Next: CheckSyncState
+                              CheckSyncState:
+                                Type: Choice
+                                Choices:
+                                  - Variable: "$.Payload.state"
+                                    StringEquals: needs_init
+                                    Next: InitTable
+                                Default: TableComplete
+                              InitTable:
+                                Type: Task
+                                Resource: arn:aws:states:::ecs:runTask.waitForTaskToken
+                                Parameters:
+                                  LaunchType: FARGATE
+                                  Cluster: !Ref FargateCluster
+                                  TaskDefinition: !Ref InitTableTaskDefinition
+                                  NetworkConfiguration:
+                                    AwsvpcConfiguration:
+                                      AssignPublicIp: DISABLED
+                                      SecurityGroups:
+                                      - !If [ExistingDatabaseClientSecurityGroup, !Ref DatabaseClientSecurityGroupParameter, !Ref DatabaseClientSecurityGroup]
+                                      Subnets:
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetA
+                                      - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-vpc--privateSubnetB
+                                  Overrides:
+                                    ContainerOverrides:
+                                    - Name: !Sub ${AWS::StackName}-InitTable
+                                      Environment:
+                                      - Name: TASK_TOKEN
+                                        Value.$: $$.Task.Token
+                                      - Name: TABLE_EVENT
+                                        Value.$: States.JsonToString($.Payload)
+                                      - Name: ENV
+                                        Value: !Ref EnvironmentParameter
+                                      - Name: LOG_LEVEL
+                                        Value: !Ref LogLevel
+                                      - Name: POWERTOOLS_METRICS_NAMESPACE
+                                        Value: canvas-data-2
+                                      - Name: POWERTOOLS_SERVICE_NAME
+                                        Value: init_table
+                                      - Name: DB_USER_SECRET_NAME
+                                        Value: !Ref DatabaseUserSecretCanvas
+                                      - Name: SSM_PARAMETER_NAME
+                                        Value: !Sub ${SsmPathParameter}
+                                      - Name: CD2_NAMESPACE
+                                        Value.$: $.Payload.namespace
+                                TimeoutSeconds: 43200
+                                Retry:
+                                  - ErrorEquals:
+                                    - ECS.ServiceException
+                                    - ECS.ThrottlingException
+                                    - ECS.ClientException
+                                    - ECS.ClusterNotFoundException
+                                    - ECS.TaskSetNotFoundException
+                                    - ECS.AmazonECSException
+                                    IntervalSeconds: 2
+                                    MaxAttempts: 6
+                                    BackoffRate: 6
+                                Catch:
+                                  - ErrorEquals:
+                                    - States.TaskFailed
+                                    ResultPath: "$.error"
+                                    Next: TableFailed
+                                Next: CheckInitState
+                              CheckInitState:
+                                Type: Choice
+                                Choices:
+                                  - Variable: "$.Payload.state"
+                                    StringEquals: failed
+                                    Next: TableFailed
+                                Default: TableComplete
+                              TableFailed:
+                                Type: Pass
+                                OutputPath: "$.Payload"
+                                End: true
+                              TableComplete:
+                                Type: Succeed
+                                OutputPath: "$.Payload"
+                        PivotResults:
+                          Type: Pass
+                          Next: SendNotification
+                          ResultPath: null
+                        SendNotification:
+                          Type: Task
+                          Resource: arn:aws:states:::sns:publish
+                          Parameters:
+                            Message.$: "$"
+                            TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
+                          End: true
+                TableUpdatesComplete:
                   Type: Succeed
-                  OutputPath: "$.Payload"
-          PivotResults:
-            Type: Pass
-            Next: SendNotification
-            ResultPath: null
-          SendNotification:
-            Type: Task
-            Resource: arn:aws:states:::sns:publish
-            Parameters:
-              Message.$: "$"
-              TopicArn: !If [ExistingNotificationTopic, !Ref NotificationTopicParameter, !Ref WorkflowNotificationTopic]
             End: true
 
   StateMachineLogGroup:
@@ -1333,48 +1391,131 @@ Resources:
           Value: !Sub ${TagValueParameter}
 
   AthenaPostgreSQLConnector:
-    Type: AWS::Serverless::Application
-    Condition: CreateAthenaConnector
-    Properties:
+   Type: AWS::Serverless::Application
+   Condition: CreatePrimaryCanvasAthenaConnector
+   Properties:
       Location:
-        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnector'
-        SemanticVersion: 2024.25.1
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
+        SemanticVersion: 2025.46.1
       Parameters:
         LambdaFunctionName: !Ref AthenaConnectorLambdaNameParameter
         CompositeHandler: PostGreSqlMuxCompositeHandler
-        DefaultConnectionString: !Sub |
-          postgres://jdbc:postgresql://${AuroraDatabaseCluster.Endpoint.Address}:${AuroraDatabaseCluster.Endpoint.Port}/cd2?${!${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena}&sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified
+        GlueConnection: !Ref CD2GlueConnection
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
         DefaultScale: '0'
-        DisableSpillEncryption: 'false'
-        LambdaMemory: '3008'
-        LambdaRoleARN: !GetAtt AthenaPostgreSQLConnectorRole.Arn
-        LambdaTimeout: '900'
-        # PermissionsBoundaryARN:
-        SecretNamePrefix: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-canvas
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
         SecurityGroupIds: !If
           - ExistingDatabaseClientSecurityGroup
           - !Ref DatabaseClientSecurityGroupParameter
           - !Ref DatabaseClientSecurityGroup
         SpillBucket: !Ref AthenaSpillBucket
-        SpillPrefix: postgresql
         SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
+
+  AthenaPostgreSQLCatalogConnector:
+   Type: AWS::Serverless::Application
+   Condition: CreateCatalogAthenaConnector
+   Properties:
+      Location:
+        ApplicationId: 'arn:aws:serverlessrepo:us-east-1:292517598671:applications/AthenaPostgreSQLConnectorWithGlueConnection'
+        SemanticVersion: 2025.46.1
+      Parameters:
+        LambdaFunctionName: !Sub ${AthenaConnectorLambdaNameParameter}_catalog
+        CompositeHandler: PostGreSqlMuxCompositeHandler
+        GlueConnection: !Ref CD2CatalogGlueConnection
+        SecretName: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog
+        DefaultScale: '0'
+        LambdaRoleArn: !GetAtt AthenaPostgreSQLCatalogConnectorRole.Arn
+        SecurityGroupIds: !If
+          - ExistingDatabaseClientSecurityGroup
+          - !Ref DatabaseClientSecurityGroupParameter
+          - !Ref DatabaseClientSecurityGroup
+        SpillBucket:
+          Fn::ImportValue:
+            Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
+        SubnetIds: !Join [ ",", !Ref LambdaSubnetListParameter ]
+
+  CD2GlueConnection:
+    Type: AWS::Glue::Connection
+    Condition: CreatePrimaryCanvasAthenaConnector
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput:
+        Name: !Sub ${AWS::StackName}-cd2
+        Description: "Connection to cd2 PostgreSQL"
+        ConnectionType: POSTGRESQL
+        PhysicalConnectionRequirements:
+          SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
+          SecurityGroupIdList:
+            - !If
+              - ExistingDatabaseClientSecurityGroup
+              - !Ref DatabaseClientSecurityGroupParameter
+              - !Ref DatabaseClientSecurityGroup
+        ConnectionProperties:
+          HOST: !Sub ${AuroraDatabaseCluster.Endpoint.Address}
+          DATABASE: "cd2"
+          JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
+          PORT: !Sub ${AuroraDatabaseCluster.Endpoint.Port}
+        AthenaProperties:
+          spill_prefix: "cd2"
+          default_scale: "0"
+          disable_spill_encryption: "false"
+          spill_bucket: !Ref AthenaSpillBucket
+        AuthenticationConfiguration:
+          AuthenticationType: "BASIC"
+          SecretArn: !Ref DatabaseUserSecretAthena
+
+  CD2CatalogGlueConnection:
+    Type: AWS::Glue::Connection
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      ConnectionInput:
+        Name: !Sub ${AWS::StackName}-cd2-catalog
+        Description: "Connection to cd2-catalog PostgreSQL"
+        ConnectionType: POSTGRESQL
+        PhysicalConnectionRequirements:
+          SubnetId: !Join [ ",", !Ref LambdaSubnetListParameter ]
+          SecurityGroupIdList:
+            - !If
+              - ExistingDatabaseClientSecurityGroup
+              - !Ref DatabaseClientSecurityGroupParameter
+              - !Ref DatabaseClientSecurityGroup
+        ConnectionProperties:
+          HOST:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-endpoint-address
+          DATABASE: "cd2_catalog"
+          JDBC_PARAMS: "sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory&stringtype=unspecified"
+          PORT:
+            Fn::ImportValue:
+              Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-endpoint-port
+        AthenaProperties:
+          spill_prefix: "cd2_catalog"
+          default_scale: "0"
+          disable_spill_encryption: "false"
+          spill_bucket: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
+        AuthenticationConfiguration:
+          AuthenticationType: "BASIC"
+          SecretArn: !Ref DatabaseUserSecretAthenaCatalog
 
   AthenaSpillBucket:
     Type: AWS::S3::Bucket
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       BucketName: !Sub ${ResourcePrefixParameter}-athena-spill-${AWS::AccountId}-${AWS::Region}
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
+            SSEAlgorithm: aws:kms
+            KMSMasterKeyID:
+              Fn::ImportValue: !Sub ${ResourcePrefixParameter}-lakehouse--keyArn
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
   AthenaPostgreSQLConnectorRole:
     Type: AWS::IAM::Role
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       ManagedPolicyArns:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
@@ -1393,7 +1534,7 @@ Resources:
 
   AthenaPostgreSQLConnectorExecutionPolicy:
     Type: AWS::IAM::Policy
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       Roles:
       - !Ref AthenaPostgreSQLConnectorRole
@@ -1413,7 +1554,7 @@ Resources:
           Action:
           - logs:CreateLogStream
           - logs:PutLogEvents
-          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AthenaPostgreSQLConnector*
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/athenafederatedcatalog*
         - Effect: Allow
           Action:
             - athena:GetQueryExecution
@@ -1444,16 +1585,138 @@ Resources:
           Action:
           - kms:Decrypt
           Resource: !GetAtt SecretsKmsKey.Arn
+        - Action:
+          - glue:GetConnection
+          Effect: Allow
+          Resource:
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}'
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
 
-  AthenaPostgreSQLDataCatalog:
+  AthenaPostgreSQLCatalogConnectorRole:
+    Type: AWS::IAM::Role
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  AthenaPostgreSQLCatalogConnectorExecutionPolicy:
+    Type: AWS::IAM::Policy
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      Roles:
+      - !Ref AthenaPostgreSQLCatalogConnectorRole
+      PolicyName: FunctionExecutionPolicy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - secretsmanager:GetSecretValue
+          Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog*
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+        - Effect: Allow
+          Action:
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/athenafederatedcatalog*
+        - Effect: Allow
+          Action:
+            - athena:GetQueryExecution
+            - s3:ListAllMyBuckets
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - ec2:CreateNetworkInterface
+          - ec2:DeleteNetworkInterface
+          - ec2:DescribeNetworkInterfaces
+          - ec2:DetachNetworkInterface
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - s3:GetObject
+          - s3:ListBucket
+          - s3:GetBucketLocation
+          - s3:GetObjectVersion
+          - s3:PutObject
+          - s3:PutObjectAcl
+          - s3:GetLifecycleConfiguration
+          - s3:PutLifecycleConfiguration
+          - s3:DeleteObject
+          Resource:
+            - Fn::ImportValue:
+                Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
+            - Fn::Sub:
+              - ${AthenaS3SpillBucketArn}/*
+              - AthenaS3SpillBucketArn:
+                  Fn::ImportValue:
+                    Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-athena-spill-bucket
+        - Effect: Allow
+          Action:
+          - kms:Decrypt
+          Resource:
+            - Fn::ImportValue:
+                Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-secrets-kms-key-arn
+        - Action:
+          - glue:GetConnection
+          Effect: Allow
+          Resource:
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2CatalogGlueConnection}'
+            - !Sub 'arn:${AWS::Partition}:glue:${AWS::Region}:${AWS::AccountId}:catalog'
+
+  # CanvasDataCatalog:
+  #   Type: AWS::Athena::DataCatalog
+  #   Condition: CreateAthenaConnector
+  #   Properties:
+  #     Name: canvas
+  #     ConnectionType: POSTGRESQL
+  #     Description: PostgreSQL connector to cd2
+  #     Type: FEDERATED
+  #     Parameters:
+  #       connection-arn: !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:connection/${CD2GlueConnection}
+  #       lambda-role-arn: !GetAtt AthenaPostgreSQLConnectorRole.Arn
+  #     Tags:
+  #       - Key: !Sub ${TagNameParameter}
+  #         Value: !Sub ${TagValueParameter}
+
+  CanvasDataCatalog:
     Type: AWS::Athena::DataCatalog
     Condition: CreateAthenaConnector
     Properties:
-      Name: CanvasData2
-      Description: PostgreSQL connector to Canvas Data 2
+      Name: !Sub ${DatabaseCd2UserParameter}
+      ConnectionType: POSTGRESQL
+      Description: PostgreSQL connector to cd2
       Type: LAMBDA
       Parameters:
-        function: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
+        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  CatalogDataCatalog:
+    Type: AWS::Athena::DataCatalog
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      Name: !Sub ${DatabaseCd2UserParameter}-catalog
+      ConnectionType: POSTGRESQL
+      Description: PostgreSQL connector to cd2 catalog
+      Type: LAMBDA
+      Parameters:
+        function: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AthenaConnectorLambdaNameParameter}_catalog
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1461,7 +1724,7 @@ Resources:
   # Secret for PostgreSQL Athena connector "athena" user
   DatabaseUserSecretAthena:
     Type: AWS::SecretsManager::Secret
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena
       Description: Database user for Athena PostgreSQL connector
@@ -1478,10 +1741,39 @@ Resources:
   # Attach Athena database user secret to the cluster
   DatabaseUserSecretAttachmentAthena:
     Type: AWS::SecretsManager::SecretTargetAttachment
-    Condition: CreateAthenaConnector
+    Condition: CreatePrimaryCanvasAthenaConnector
     Properties:
       SecretId: !Ref DatabaseUserSecretAthena
       TargetId: !Ref AuroraDatabaseCluster
+      TargetType: AWS::RDS::DBCluster
+
+  DatabaseUserSecretAthenaCatalog:
+    Type: AWS::SecretsManager::Secret
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      Name: !Sub ${AWS::StackName}-cd2-db-user-${EnvironmentParameter}-athena-catalog
+      Description: Database user for Athena PostgreSQL connector for the catalog instance
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username": "athena_catalog"}'
+        GenerateStringKey: password
+        PasswordLength: 128
+        ExcludePunctuation: true
+      KmsKeyId:
+        Fn::ImportValue:
+          Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-secrets-kms-key-id
+      Tags:
+        - Key: !Sub ${TagNameParameter}
+          Value: !Sub ${TagValueParameter}
+
+  # Attach Athena database user secret for the canvas catalog instance to the cluster
+  DatabaseUserSecretAttachmentAthenaCatalog:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Condition: CreateCatalogAthenaConnector
+    Properties:
+      SecretId: !Ref DatabaseUserSecretAthenaCatalog
+      TargetId:
+        Fn::ImportValue:
+          Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-aurora-cluster-identifier
       TargetType: AWS::RDS::DBCluster
 
   LambdaLayer:
@@ -1494,6 +1786,18 @@ Resources:
         - python3.12
 
 Outputs:
+  SecretsKmsKeyArn:
+    Value: !GetAtt SecretsKmsKey.Arn
+    Description: Canvas Data 2 Secrets KMS key ARN
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-arn
+  SecretsKmsKeyId:
+    Value: !Ref SecretsKmsKey
+    Description: Canvas Data 2 Secrets KMS key ID
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-secrets-kms-key-id
   DatabaseAdminSecretArn:
     Value: !If [ExistingDatabaseAdminSecret, !Ref DatabaseAdminSecretArnParameter, !GetAtt AuroraDatabaseCluster.MasterUserSecret.SecretArn]
     Description: Canvas Data 2 database admin user secret ARN
@@ -1504,8 +1808,38 @@ Outputs:
     Description: Canvas Data 2 database user secret ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-user-secret-arn
+  DatabaseUserSecretAthenaArn:
+    Value: !Ref DatabaseUserSecretAthena
+    Description: Canvas Data 2 database Athena secret ARN
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-db-athena-secret-arn
   AuroraClusterArn:
     Value: !If [ExistingDatabase, !Ref DatabaseClusterArnParameter, !GetAtt AuroraDatabaseCluster.DBClusterArn]
     Description: Canvas Data 2 Aurora cluster ARN
     Export:
       Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-arn
+  AuroraClusterDBClusterIdentifier:
+    Value: !Ref AuroraDatabaseCluster
+    Description: Canvas Data 2 Aurora cluster DB Cluster Identifier
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-identifier
+  AuroraClusterEndpoint:
+    Value: !GetAtt AuroraDatabaseCluster.Endpoint.Address
+    Description: Canvas Data 2 Aurora cluster ARN
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-address
+  AuroraClusterPort:
+    Value: !GetAtt AuroraDatabaseCluster.Endpoint.Port
+    Description: Canvas Data 2 Aurora cluster ARN
+    Condition: CreateDatabase
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-aurora-cluster-endpoint-port
+  AthenaSpillBucketArn:
+    Value: !If [ExistingDatabase, '', !GetAtt AthenaSpillBucket.Arn]
+    Description: Canvas Data 2 Athena S3 Spill Bucket ARN
+    Condition: CreatePrimaryCanvasAthenaConnector
+    Export:
+      Name: !Sub ${AWS::StackName}-${EnvironmentParameter}-athena-spill-bucket

@@ -30,6 +30,12 @@ def process_table_update_message(message):
     #Transform the string message from the step function into the real data.
     message = ast.literal_eval(message)
 
+    # Get the namespace information.
+    if len(message) > 0:
+        namespace = message[0]["namespace"]
+    else:
+        namespace = 'N/A'
+
     # Extract different table state information and error messages from the input data from the SNS topic.
     complete_tables = [item["table_name"] for item in message if item.get("state") == "complete"]
     complete_tables_with_schema_update = [item["table_name"] for item in message if item.get("state") == "complete_with_update"]
@@ -50,6 +56,7 @@ def process_table_update_message(message):
 
     # Create a multi-line message for the slack notification.
     message = (
+        f'*Namespace: {namespace}* \n'
         f'{green_check_mark_emoji} Complete: {str(len(complete_tables))} \n'
         f'{green_check_mark_emoji} Complete w/ Schema Update: {str(len(complete_tables_with_schema_update))} \n'
         f'{failed_table_number_emoji} Failed: {str(number_of_failed_tables)} \n'

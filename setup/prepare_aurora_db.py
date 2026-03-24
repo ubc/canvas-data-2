@@ -13,10 +13,10 @@ parser.add_argument(
     required=True,
 )
 parser.add_argument(
-    "--is-additional-stack",
-    help="Whether this is for the DB changes for the additional CD2 stack",
-    action="store_true",   # If specified, sets the value as True
-    default=False          # Default is False when not passed
+    "--namespaces",
+    help="The name(s) of the Canvas Data 2 namespace(s) to import",
+    nargs='+',
+    required=True,
 )
 args = parser.parse_args()
 
@@ -27,8 +27,7 @@ secrets_client = boto3.client("secretsmanager")
 rds_data_client = boto3.client("rds-data")
 cf_resource = boto3.resource("cloudformation")
 stack = cf_resource.Stack(args.stack_name)
-
-is_additional_stack = args.is_additional_stack
+namespaces = args.namespaces
 
 console.print("Starting database preparation", style="bold green")
 
@@ -63,6 +62,7 @@ role_privileges = {
 # Define user-role mapping
 user_roles = {
     "athena": "read_only",
+    "athena_catalog": "read_only",
     db_user_username: "admin"
 }
 
@@ -177,26 +177,27 @@ for s in user_secrets["SecretList"]:
     grant_user_to_admin(username, admin_username, database_name)
 
     # Create schema for user (with them as owner) if they need a schema
-    if username in users_to_create_schema:
-        create_schema(username, username, database_name)
+    if username in users_to_create_schema and "athena" not in username:
+        for namespace in namespaces:
+            create_schema(namespace, username, database_name)
 
     # Create instructure_dap schema for the CD2 database user with them as owner
-    if username == db_user_username:
+    if username in users_to_create_schema:
         create_schema("instructure_dap", username, database_name)
 
     # Assign privileges to canvas and instructure_dap schemas
     # Defaults to read-only if user is not set in user_roles dict
     user_role = get_user_role(username)
 
-    grant_usage_to_schema(username, username, database_name)
-    assign_privileges(username, username, user_role, database_name)
+    for namespace in namespaces:
+        if 'catalog' in namespace and username == 'athena_catalog':
+            database_name += '_catalog'
+
+        grant_usage_to_schema(username, namespace, database_name)
+        assign_privileges(username, namespace, user_role, database_name)
 
     grant_usage_to_schema(username, "instructure_dap", database_name)
     assign_privileges(username, "instructure_dap", user_role, database_name)
 
     # Grant the CREATE privilege on the cd2 database.
     grant_create_permission_on_db_to_db_user(username, database_name)
-
-    # If this is for the new additional stack, grant the access permission to the instructure_dap schema.
-    if is_additional_stack:
-        grant_access_permission_on_instructure_dap_schema_to_db_user(username, database_name)

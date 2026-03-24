@@ -35,6 +35,11 @@ api_base_url = os.environ.get("API_BASE_URL", "https://api-gateway.instructure.c
 
 FUNCTION_NAME = 'sync_table'
 
+STATE_COMPLETE = "complete"
+STATE_COMPLETE_WITH_UPDATE = "complete_with_update"
+STATE_NEEDS_INIT = "needs_init"
+STATE_FAILED = "failed"
+
 def get_ecs_log_url():
     # Get region from env
     region = os.environ.get('AWS_REGION', 'ca-central-1')  # fallback if not set
@@ -77,7 +82,7 @@ def start(event):
     db_name = db_user_secret["dbname"]
     db_host = db_user_secret["host"]
     db_port = db_user_secret["port"]
-    namespace = db_user
+    namespace = os.environ.get('CD2_NAMESPACE', 'canvas')
 
     conn_str = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=verify-ca&sslrootcert=rds-combined-ca-bundle.pem"
     db_connection = DatabaseConnection(connection_string=conn_str)
@@ -99,43 +104,44 @@ def start(event):
             sync_table(credentials, api_base_url, db_connection, namespace, table_name)
         )
 
-        event["state"] = "complete"
+        event["state"] = STATE_COMPLETE
     except QueryException as e:
         logger.exception(f"{e}")
         if "ALTER TABLE" in str(e):
             # This is a special case where the table needs a DDL update
             # Before we can apply the DDL update, we need to drop all dependent views
             try:
-                drop_dependencies(db_name="cd2", table_name=table_name)
+                drop_dependencies(db_name=db_name, table_name=table_name)
                 asyncio.get_event_loop().run_until_complete(
                     sync_table(
                         credentials, api_base_url, db_connection, namespace, table_name
                     )
                 )
-                event["state"] = "complete_with_update"
+                event["state"] = STATE_COMPLETE_WITH_UPDATE
             except Exception as e:
                 logger.exception(e)
-                event["state"] = "failed"
+                event["state"] = STATE_FAILED
                 # Make the each error as string.
                 event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
             finally:
-                restore_dependencies(db_name="cd2", table_name=table_name)
+                restore_dependencies(db_name=db_name, table_name=table_name)
         else:
-            event["state"] = "failed"
+            event["state"] = STATE_FAILED
     except NonExistingTableError as e:
         logger.exception(e)
-        event["state"] = "needs_init"
+        event["state"] = STATE_NEEDS_INIT
         event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
     except ValueError as e:
         logger.exception(e)
         if "table not initialized" in str(e):
-            event["state"] = "needs_init"
+            event["state"] = STATE_NEEDS_INIT
         else:
-            event["state"] = "failed"
+            event["state"] = STATE_FAILED
         event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
+        return event
     except Exception as e:
         logger.exception(e)
-        event["state"] = "failed"
+        event["state"] = STATE_FAILED
         event["error_message"] = generate_error_string(FUNCTION_NAME, table_name, event["state"], e, cloudwatch_log_url)
 
     logger.info(f"event: {event}")
@@ -201,22 +207,21 @@ if __name__ == "__main__":
     try:
         result = start(event)
 
+        payload = {
+            "Payload": result
+        }
+
+        if token:
+            stepfunctions.send_task_success(
+                taskToken=token,
+                output=json.dumps(payload))
+
     except Exception as err:
         if token:
             stepfunctions.send_task_failure(
                 taskToken=token,
                 error=f'{err}'
             )
-        raise err
-
-    payload = {
-        "Payload": result
-    }
-
-    if token:
-        stepfunctions.send_task_success(
-            taskToken=token,
-            output=json.dumps(payload))
 
 """
     if token and result['state'] == 'failed':

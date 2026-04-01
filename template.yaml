@@ -1223,7 +1223,7 @@ Resources:
                           Next: ProcessTables
                         ProcessTables:
                           Type: Map
-                          MaxConcurrency: 15
+                          MaxConcurrency: 10
                           ItemsPath: "$.tables"
                           Next: PivotResults
                           ItemProcessor:

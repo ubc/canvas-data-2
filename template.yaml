@@ -1585,6 +1585,11 @@ Resources:
           Action:
           - kms:Decrypt
           Resource: !GetAtt SecretsKmsKey.Arn
+        - Effect: Allow
+          Action:
+          - kms:GenerateDataKey
+          Resource:
+            Fn::ImportValue: !Sub ${ResourcePrefixParameter}-lakehouse--keyArn
         - Action:
           - glue:GetConnection
           Effect: Allow

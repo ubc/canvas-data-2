@@ -1584,6 +1584,7 @@ Resources:
         - Effect: Allow
           Action:
           - kms:Decrypt
+          - kms:GenerateDataKey
           Resource: !GetAtt SecretsKmsKey.Arn
         - Action:
           - glue:GetConnection

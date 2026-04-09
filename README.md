@@ -1,4 +1,4 @@
-# canvas-data-2-aws - WORK IN PROGRESS
+# canvas-data-2-aws
 
 This project contains source code and supporting files for a serverless application that you can use to download and maintain a Canvas Data 2 replica database.
 You can deploy this application to your AWS account with the SAM CLI. It includes the following files and folders.
@@ -8,11 +8,8 @@ You can deploy this application to your AWS account with the SAM CLI. It include
 - `init_table` - Code for a Lambda function that inits a table using the `dap` client library.
 - `template.yaml` - A template that defines the application's AWS resources.
 
-This application uses an AWS Step Function to orchestrate the workflow:
-
-![workflow diagram](canvas-data-2-step-function.png)
-
 ## Application workflow
+This application uses an AWS Step Function to orchestrate the workflow:
 
 1. The Step Function is executed on an hourly schedule via EventBridge.
 2. The first step executes the `list_tables` Lambda functions which retrieves the list of CD2 tables from the API.

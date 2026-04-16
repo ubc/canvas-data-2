@@ -1676,6 +1676,11 @@ Resources:
           Resource:
             - Fn::ImportValue:
                 Fn::Sub: ${ResourcePrefixParameter}-canvas-data-2-${EnvironmentParameter}-secrets-kms-key-arn
+        - Effect: Allow
+          Action:
+          - kms:GenerateDataKey
+          Resource:
+            Fn::ImportValue: !Sub ${ResourcePrefixParameter}-lakehouse--keyArn
         - Action:
           - glue:GetConnection
           Effect: Allow

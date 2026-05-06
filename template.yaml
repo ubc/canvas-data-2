@@ -1723,7 +1723,7 @@ Resources:
     Type: AWS::Athena::DataCatalog
     Condition: CreateCatalogAthenaConnector
     Properties:
-      Name: !Sub ${DatabaseCd2UserParameter}-catalog
+      Name: !Sub ${DatabaseCd2UserParameter}
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2 catalog
       Type: LAMBDA

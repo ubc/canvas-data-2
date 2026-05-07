@@ -245,9 +245,11 @@ Conditions:
     - Condition: ExistingDatabase
     - Condition: AthenaConnector
 
-  CreateAthenaConnector: !Or
+  CreateAthenaConnector: !And
+    - !Or
       - Condition: CreatePrimaryCanvasAthenaConnector
       - Condition: CreateAdditionalPrimaryCanvasAthenaConnector
+    - !Not [Condition: IsCatalogNamespaceIncluded]
 
   CreateCatalogAthenaConnector: !And
     - Condition: ExistingDatabase
@@ -1717,11 +1719,11 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  CatalogDataCatalog:
+  CatalogDataCatalogV2:
     Type: AWS::Athena::DataCatalog
     Condition: CreateCatalogAthenaConnector
     Properties:
-      Name: !Sub ${DatabaseCd2UserParameter}-catalog
+      Name: !Sub ${DatabaseCd2UserParameter}_v2
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2 catalog
       Type: LAMBDA

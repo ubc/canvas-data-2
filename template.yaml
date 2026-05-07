@@ -1719,7 +1719,7 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  CatalogDataCatalog:
+  CatalogDataCatalogV2:
     Type: AWS::Athena::DataCatalog
     Condition: CreateCatalogAthenaConnector
     Properties:

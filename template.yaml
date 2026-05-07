@@ -1719,11 +1719,11 @@ Resources:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
 
-  CatalogDataCatalogV2:
+  CatalogDataCatalog:
     Type: AWS::Athena::DataCatalog
     Condition: CreateCatalogAthenaConnector
     Properties:
-      Name: !Sub ${DatabaseCd2UserParameter}_v2
+      Name: !Sub ${DatabaseCd2UserParameter}
       ConnectionType: POSTGRESQL
       Description: PostgreSQL connector to cd2 catalog
       Type: LAMBDA

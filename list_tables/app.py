@@ -7,7 +7,7 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from botocore.config import Config
 from dap.api import DAPClient
 from dap.dap_types import Credentials
-from shared.utils import get_secret_value, send_to_slack, get_full_environment_name
+from shared.utils import publish_alert, get_full_environment_name
 
 region = os.environ.get('AWS_REGION')
 
@@ -25,18 +25,8 @@ param_path = f'/{env}/{ssm_parameter_name}'
 api_base_url = os.environ.get('API_BASE_URL', 'https://api-gateway.instructure.com')
 
 REGION = os.environ["AWS_REGION"]
-SLACK_WEBHOOK_URL_SECRET_NAME = os.getenv("SLACK_WEBHOOK_SECRET_NAME")
+ALERTS_HIGH_TOPIC_ARN = os.environ["ALERTS_HIGH_TOPIC_ARN"]
 STACK_NAME =  os.environ["STACK_NAME"]
-SLACK_WEBHOOK_URL = get_secret_value(SLACK_WEBHOOK_URL_SECRET_NAME, REGION)
-
-def generate_error_message(input_error):
-    environment_name = get_full_environment_name(env)
-    red_cross_mark_emoji = ':x:'
-
-    sns_title = f"<!channel> *{STACK_NAME} ({environment_name})*\n"
-    message = f"{red_cross_mark_emoji} The ListTables step failed with the following error: \n {input_error}"
-
-    return sns_title + message
 
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event, context: LambdaContext):
@@ -63,13 +53,17 @@ def lambda_handler(event, context: LambdaContext):
         return {'tables': tmap}
     except Exception as e:
         logger.exception(e)
-        message = generate_error_message(e)
 
-        # Send a slack notification to alert any issue during the list_tables operation.
+        # The whole sync workflow dies here, so this goes to the high tier.
         try:
-            send_to_slack(message, SLACK_WEBHOOK_URL)
+            environment_name = get_full_environment_name(env)
+            publish_alert(
+                ALERTS_HIGH_TOPIC_ARN,
+                f":x: {STACK_NAME} ({environment_name}): ListTables failed",
+                f"The ListTables step failed with the following error:\n```{e}```",
+            )
         except Exception as e:
-            logger.exception(f"Slack notification failed: {e}")
+            logger.exception(f"Alert publish failed: {e}")
             raise
 
 

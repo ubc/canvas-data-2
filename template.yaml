@@ -171,6 +171,17 @@ Parameters:
     Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
+  # Deprecated, no longer referenced (#102 PR 4 removed the webhook path).
+  # Kept because the CodePipeline CloudFormation action passes
+  # UsePreviousValue for every parameter already on the deployed stacks, so
+  # deleting it from the template fails change-set creation. Actual removal
+  # requires a one-time manual update-stack per environment with this
+  # parameter omitted; until then it is a harmless no-op.
+  SlackWebHookURLSecretNameParameter:
+    Type: String
+    Description: 'DEPRECATED - unused. Formerly the secret name for the Slack webhook URL.'
+    Default: ''
+
   SecretsKmsKeyIDParameter:
     Type: String
     Description: (Optional) The key ID for existing SecretsKmsKey. Leave empty to create a new KMS key.

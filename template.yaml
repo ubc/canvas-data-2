@@ -171,11 +171,6 @@ Parameters:
     Description: (Optional) SSM Parameter Store key for Falcon sensor options. Leave empty if FalconSensorParameter is false.
     Default: ''
 
-  SlackWebHookURLSecretNameParameter:
-    Type: String
-    Description: The secret name for Slack Incoming Webhook URL for the notification
-    Default: ''
-
   SecretsKmsKeyIDParameter:
     Type: String
     Description: (Optional) The key ID for existing SecretsKmsKey. Leave empty to create a new KMS key.
@@ -544,7 +539,8 @@ Resources:
           POWERTOOLS_SERVICE_NAME: list_tables
           LOG_LEVEL: !Ref LogLevel
           SKIP_TABLES: !Ref SkipTablesParameter
-          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
+          ALERTS_HIGH_TOPIC_ARN:
+            Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--highTopicArn
           STACK_NAME: !Sub ${AWS::StackName}
           SSM_PARAMETER_NAME: !Sub ${SsmPathParameter}
           DB_CD2_USER: !Sub ${DatabaseCd2UserParameter}
@@ -594,14 +590,23 @@ Resources:
             - ssm:GetParametersByPath
             Resource:
             - !Sub arn:aws:ssm:ca-central-1:${AWS::AccountId}:parameter/${EnvironmentParameter}/${SsmPathParameter}*
-      - PolicyName: SecretsManagerPolicy
+      - PolicyName: AlertsPublishPolicy
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
             - Effect: Allow
               Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
+                - sns:Publish
+              Resource:
+                Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--highTopicArn
+            # The alert topics are SSE-KMS; publishers using IAM credentials
+            # need data-key rights on the alerts CMK.
+            - Effect: Allow
+              Action:
+                - kms:Decrypt
+                - kms:GenerateDataKey
+              Resource:
+                Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--keyArn
       - PolicyName: logging
         PolicyDocument:
           Version: '2012-10-17'
@@ -1021,7 +1026,10 @@ Resources:
       Timeout: 10
       Environment:
         Variables:
-          SLACK_WEBHOOK_SECRET_NAME: !Sub ${SlackWebHookURLSecretNameParameter}
+          ALERTS_HIGH_TOPIC_ARN:
+            Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--highTopicArn
+          ALERTS_INFO_TOPIC_ARN:
+            Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--infoTopicArn
           AWS_ENVIRONMENT: !Sub ${EnvironmentParameter}
           STACK_NAME: !Sub ${AWS::StackName}
       Role: !GetAtt SlackNotificationFunctionRole.Arn
@@ -1054,8 +1062,18 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SlackWebHookURLSecretNameParameter}*
+                  - sns:Publish
+                Resource:
+                  - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--highTopicArn
+                  - Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--infoTopicArn
+              # The alert topics are SSE-KMS; publishers using IAM credentials
+              # need data-key rights on the alerts CMK.
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource:
+                  Fn::ImportValue: !Sub ${ResourcePrefixParameter}-alerts--keyArn
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup

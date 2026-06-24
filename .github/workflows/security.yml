@@ -1,0 +1,310 @@
+name: Security
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  merge_group:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write    # for the sticky Falcon result comments on PRs
+
+jobs:
+  iac-scan:
+    name: Falcon IaC & Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Falcon IaC scan
+        uses: crowdstrike/fcs-action@340a86029db9fcb0287b5df183639f8d487dc206 # v4.0.1
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: us-1
+          scan_type: iac
+          path: '.'
+          report_formats: json
+          output_path: ./fcs-results/iac/
+          # Scans the SAM template (template.yaml), the CodeBuild buildspecs,
+          # and the init_table / sync_table Dockerfiles.
+          fail_on: critical=1
+          upload_results: true
+          project_name: canvas-data-2
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+
+      # Upload before the digest so its artifact-url can be linked in the comment.
+      - name: Upload IaC scan results
+        id: upload-iac
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fcs-iac-results
+          path: ./fcs-results/iac/
+          if-no-files-found: ignore
+
+      - name: Summarize IaC findings
+        if: always()
+        env:
+          ARTIFACT_URL: ${{ steps.upload-iac.outputs.artifact-url }}
+        run: |
+          python3 - <<'PY' > fcs-iac-comment.md
+          import glob, json, os
+          files = sorted(glob.glob("fcs-results/iac/*.json"))
+          if not files:
+              print("### Falcon Cloud Security — IaC scan\n\nNo report was produced.")
+              raise SystemExit
+          data = json.load(open(files[-1]))
+          summary = data.get("detection_summary", {})
+          server, repo, sha = (os.environ.get(k, "") for k in ("GITHUB_SERVER_URL", "GITHUB_REPOSITORY", "GITHUB_SHA"))
+          def loc(f, line):
+              if server and repo and sha and f:
+                  return f"[`{f}:{line}`]({server}/{repo}/blob/{sha}/{f}#L{line})"
+              return f"`{f}:{line}`"
+          order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Informational": 4}
+          print(f"### Falcon Cloud Security — IaC scan — `{data.get('project_name', '')}`\n")
+          print("| Severity | Count |")
+          print("|---|---|")
+          for sev in ("critical", "high", "medium", "low", "informational"):
+              if sev in summary:
+                  print(f"| {sev.capitalize()} | {summary[sev]} |")
+          print(f"| **Total** | **{summary.get('total', 0)}** |\n")
+          rules = sorted(data.get("rule_detections", []),
+                         key=lambda d: (order.get(d.get("severity", ""), 9), d.get("rule_name", "")))
+          if rules:
+              print("<details><summary>Findings (grouped by rule, highest severity first)</summary>\n")
+              for d in rules:
+                  dets = d.get("detections", [])
+                  print(f"#### {d.get('severity', '')} — {d.get('rule_name', '')} ({len(dets)})\n")
+                  for det in dets:
+                      res = det.get("resource_name") or det.get("resource_type") or ""
+                      tail = f" — `{res}`" if res and res != "n/a" else ""
+                      print(f"- {loc(det.get('file', ''), det.get('line', ''))}{tail}")
+                      reason = (det.get("reason") or "").strip()
+                      rec = (det.get("recommendation") or "").strip()
+                      if reason:
+                          print(f"  - **Reason:** {reason}")
+                      if rec:
+                          print(f"  - **Fix:** {rec}")
+                  print()
+              print("</details>\n")
+          url = os.environ.get("ARTIFACT_URL", "")
+          if url:
+              print(f"[⬇ Full IaC report (artifact)]({url})\n")
+          print("_Full results in the `fcs-iac-results` artifact and the Falcon console._")
+          PY
+          cat fcs-iac-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post IaC results comment
+        if: always() && github.event_name == 'pull_request' && hashFiles('fcs-iac-comment.md') != ''
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: fcs-iac
+          number: ${{ github.event.pull_request.number }}
+          path: fcs-iac-comment.md
+
+  image-scan:
+    name: Falcon Image Scan - ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: init_table
+            label: Init Table
+          - service: sync_table
+            label: Sync Table
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.service }} image
+        run: docker build -t cd2-${{ matrix.service }}:scan ./${{ matrix.service }}
+
+      # Vulnerabilities: CycloneDX carries full per-CVE detail (ExPRT + CVSS +
+      # fixed version), untruncated. No minimum_severity / vuln_fixable_only —
+      # for CycloneDX those shrink the report body, emptying the vuln tables;
+      # gating is enforced from the report in the "Gate" step below.
+      - name: Run Falcon image scan (CycloneDX — vulnerabilities)
+        uses: crowdstrike/fcs-action@340a86029db9fcb0287b5df183639f8d487dc206 # v4.0.1
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: us-1
+          scan_type: image
+          image: cd2-${{ matrix.service }}:scan
+          report_formats: cyclonedx-json
+          output_path: ./fcs-results/image-${{ matrix.service }}.cdx.json
+          upload_results: true
+          timeout: 600
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+
+      # Second scan in JSON: only this format carries detailed misconfiguration
+      # findings (per-binary paths + remediation); CycloneDX has names/severities
+      # only. Quick; not used for the console upload (the CycloneDX scan does that).
+      - name: Run Falcon image scan (JSON — misconfiguration detail)
+        if: always()
+        continue-on-error: true
+        uses: crowdstrike/fcs-action@340a86029db9fcb0287b5df183639f8d487dc206 # v4.0.1
+        with:
+          falcon_client_id: ${{ secrets.FALCON_CLIENT_ID }}
+          falcon_region: us-1
+          scan_type: image
+          image: cd2-${{ matrix.service }}:scan
+          report_formats: json
+          output_path: ./fcs-results/image-${{ matrix.service }}.json
+          upload_results: false
+          timeout: 600
+        env:
+          FALCON_CLIENT_SECRET: ${{ secrets.FALCON_CLIENT_SECRET }}
+
+      # Upload before the digest so each artifact-url can be linked in the comment.
+      - name: Upload ${{ matrix.service }} CycloneDX report
+        id: upload-image-cdx
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fcs-image-${{ matrix.service }}-cyclonedx
+          path: ./fcs-results/image-${{ matrix.service }}.cdx.json
+          if-no-files-found: ignore
+
+      - name: Upload ${{ matrix.service }} JSON report
+        id: upload-image-json
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fcs-image-${{ matrix.service }}-json
+          path: ./fcs-results/image-${{ matrix.service }}.json
+          if-no-files-found: ignore
+
+      - name: Summarize ${{ matrix.service }} image findings
+        if: always()
+        env:
+          ARTIFACT_URL_CDX: ${{ steps.upload-image-cdx.outputs.artifact-url }}
+          ARTIFACT_URL_JSON: ${{ steps.upload-image-json.outputs.artifact-url }}
+        run: |
+          python3 - <<'PY' > fcs-image-comment.md
+          import glob, json, os
+          from collections import OrderedDict
+          cdx = sorted(glob.glob("fcs-results/image-*.cdx.json"))
+          if not cdx:
+              print("### Falcon Cloud Security — image scan\n\nNo report was produced.")
+              raise SystemExit
+          data = json.load(open(cdx[-1]))
+          meta = data.get("metadata", {})
+          comp = meta.get("component", {})
+          cprops = {p["name"]: p["value"] for p in comp.get("properties", [])}
+          repo = cprops.get("image:repository", comp.get("name", ""))
+          tag = cprops.get("image:tag", comp.get("version", ""))
+          print(f"### Falcon Cloud Security — image scan — `{repo}:{tag}`\n")
+          agg = {p["name"]: p["value"] for p in meta.get("properties", [])}
+          print("| ExPRT severity | Vulnerabilities |")
+          print("|---|---|")
+          for sev in ("critical", "high", "medium", "low", "unknown"):
+              key = f"vulnerabilities:{sev}"
+              if key in agg:
+                  print(f"| {sev.capitalize()} | {agg[key]} |")
+          print()
+          order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "UNKNOWN": 4}
+          fixable, unfixable = [], []
+          for v in (data.get("vulnerabilities") or []):
+              vp = {p["name"]: p["value"] for p in v.get("properties", [])}
+              row = (vp.get("exprtRatings", "").upper(), v.get("id", ""),
+                     vp.get("product:name", ""), vp.get("product:version", ""),
+                     vp.get("fixedVersions", "") or "")
+              (fixable if row[4] else unfixable).append(row)
+          fixable.sort(key=lambda r: (order.get(r[0], 9), r[1]))
+          unfixable.sort(key=lambda r: (order.get(r[0], 9), r[1]))
+          print(f"#### Fixable vulnerabilities ({len(fixable)})\n")
+          if fixable:
+              print("| ExPRT | CVE | Package | Installed | Fixed in |")
+              print("|---|---|---|---|---|")
+              for ex, cve, pkg, ver, fix in fixable[:100]:
+                  print(f"| {ex.capitalize()} | {cve} | {pkg} | {ver} | {fix} |")
+              if len(fixable) > 100:
+                  print(f"\n_+{len(fixable) - 100} more — see the artifact._")
+          else:
+              print("_None — no vulnerabilities with an available fix._")
+          print()
+          if unfixable:
+              print(f"<details><summary>Vulnerabilities with no fix available ({len(unfixable)})</summary>\n")
+              print("| ExPRT | CVE | Package | Installed |")
+              print("|---|---|---|---|")
+              for ex, cve, pkg, ver, _ in unfixable[:300]:
+                  print(f"| {ex.capitalize()} | {cve} | {pkg} | {ver} |")
+              if len(unfixable) > 300:
+                  print(f"\n_+{len(unfixable) - 300} more — see the artifact._")
+              print("\n</details>\n")
+          # Misconfigurations from the JSON report (per-binary paths + remediation).
+          jsons = [f for f in sorted(glob.glob("fcs-results/image-*.json")) if not f.endswith(".cdx.json")]
+          detections = (json.load(open(jsons[-1])).get("Detections") if jsons else None) or []
+          sev_rank = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Unknown": 4}
+          groups = OrderedDict()
+          for d in sorted(detections, key=lambda d: (sev_rank.get((d.get("Detection") or {}).get("Severity", ""), 9),
+                                                      (d.get("Detection") or {}).get("Title", ""))):
+              det = d.get("Detection") or {}
+              g = groups.setdefault((det.get("Severity", ""), det.get("Title") or det.get("Name", "")),
+                                    {"fix": " ".join((det.get("Remediation") or "").split()), "matches": []})
+              m = (det.get("Details") or {}).get("Match")
+              if m:
+                  g["matches"].append(m)
+          if detections:
+              print(f"<details><summary>Misconfigurations ({len(detections)})</summary>\n")
+              for (sev, title), g in groups.items():
+                  print(f"#### {sev} — {title} ({len(g['matches']) or 1})\n")
+                  if g["fix"]:
+                      print(f"**Fix:** {g['fix']}\n")
+                  for m in g["matches"][:25]:
+                      print(f"- `{m}`")
+                  if len(g["matches"]) > 25:
+                      print(f"- _+{len(g['matches']) - 25} more_")
+                  print()
+              print("</details>\n")
+          cdx_url = os.environ.get("ARTIFACT_URL_CDX", "")
+          json_url = os.environ.get("ARTIFACT_URL_JSON", "")
+          if cdx_url:
+              print(f"[⬇ Full CycloneDX report (artifact)]({cdx_url})")
+          if json_url:
+              print(f"[⬇ Full JSON report (artifact)]({json_url})")
+          if cdx_url or json_url:
+              print()
+          print("_Severities are CrowdStrike ExPRT ratings (CVSS in the artifact). Full detail and the policy verdict are in the artifacts and the Falcon console._")
+          PY
+          cat fcs-image-comment.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post ${{ matrix.service }} image results comment
+        if: always() && github.event_name == 'pull_request' && hashFiles('fcs-image-comment.md') != ''
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+        with:
+          header: fcs-image-${{ matrix.service }}
+          number: ${{ github.event.pull_request.number }}
+          path: fcs-image-comment.md
+
+      # Gate enforced from the report (the scan's minimum_severity /
+      # vuln_fixable_only would empty the CycloneDX body): fail on any ExPRT
+      # high-or-critical vulnerability that has an available fix.
+      - name: Gate on fixable high/critical vulnerabilities (${{ matrix.service }})
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, json, sys
+          files = sorted(glob.glob("fcs-results/image-*.cdx.json"))
+          if not files:
+              print("No CycloneDX report produced; nothing to gate.")
+              sys.exit(0)
+          data = json.load(open(files[-1]))
+          hits = []
+          for v in (data.get("vulnerabilities") or []):
+              vp = {p["name"]: p["value"] for p in v.get("properties", [])}
+              if vp.get("exprtRatings", "").lower() in ("high", "critical") and (vp.get("fixedVersions") or "").strip():
+                  hits.append(f"{vp.get('exprtRatings')}: {v.get('id', '')} ({vp.get('product:name', '')} -> {vp.get('fixedVersions')})")
+          if hits:
+              print(f"::error::Fixable high/critical vulnerabilities found: {'; '.join(hits)}")
+              sys.exit(1)
+          print("No fixable ExPRT high/critical vulnerabilities.")
+          PY

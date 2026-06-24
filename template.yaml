@@ -269,6 +269,18 @@ Resources:
     Properties:
       Description: Key for encrypting Canvas Data 2 secrets
       Enabled: true
+      # Explicit policy (was relying on the default): grant the account root
+      # full control so access is governed by IAM, matching DataKmsKey and the
+      # lakehouse CMK.
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: Allow root account administration of key
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}
@@ -1540,6 +1552,11 @@ Resources:
             SSEAlgorithm: aws:kms
             KMSMasterKeyID:
               Fn::ImportValue: !Sub ${ResourcePrefixParameter}-lakehouse--keyArn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       Tags:
         - Key: !Sub ${TagNameParameter}
           Value: !Sub ${TagValueParameter}

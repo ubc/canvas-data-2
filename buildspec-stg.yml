@@ -28,11 +28,11 @@ phases:
   build:
     commands:
       - echo Starting Docker build for init_table...
-      - docker build -t $REPOSITORY_URI_INIT_TABLE:latest $CODEBUILD_SRC_DIR/init_table/
+      - docker build --pull -t $REPOSITORY_URI_INIT_TABLE:latest $CODEBUILD_SRC_DIR/init_table/
       - docker tag $REPOSITORY_URI_INIT_TABLE:latest $REPOSITORY_URI_INIT_TABLE:$IMAGE_TAG
       - docker tag $REPOSITORY_URI_INIT_TABLE:latest $REPOSITORY_URI_INIT_TABLE:stg
       - echo Starting Docker build for sync_table...
-      - docker build -t $REPOSITORY_URI_SYNC_TABLE:latest $CODEBUILD_SRC_DIR/sync_table/
+      - docker build --pull -t $REPOSITORY_URI_SYNC_TABLE:latest $CODEBUILD_SRC_DIR/sync_table/
       - docker tag $REPOSITORY_URI_SYNC_TABLE:latest $REPOSITORY_URI_SYNC_TABLE:$IMAGE_TAG
       - docker tag $REPOSITORY_URI_SYNC_TABLE:latest $REPOSITORY_URI_SYNC_TABLE:stg
       - echo Starting SAM build...

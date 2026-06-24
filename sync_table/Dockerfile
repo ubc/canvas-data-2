@@ -1,5 +1,8 @@
 FROM public.ecr.aws/docker/library/python:3.12-alpine
 
+# Apply OS security updates to the Alpine base.
+RUN apk -U upgrade --no-cache
+
 ARG UID=1012
 ARG GID=1012
 

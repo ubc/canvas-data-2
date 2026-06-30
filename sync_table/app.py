@@ -62,13 +62,25 @@ def get_ecs_log_url():
     return log_url
 
 def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
-    if len(str(exception)) != 0:
-        return f"{table_name} - {function_name} - {state}, Error: {str(exception)} (<{cloudwatch_log_url}|CloudWatch Log>)"
+    message = str(exception)
 
-    # This is for the ProcessingError thrown by the tables: grading_period_groups and grading_periods.
-    # This particular error object doesn't have any error message. In this case, we use the name of the class of an exception object.
-    else:
-        return f"{table_name} - {function_name} - {state}, Error: {type(exception).__name__} (<{cloudwatch_log_url}|CloudWatch Log>)"
+    # DAP OperationError subclasses (e.g. the ProcessingError raised for
+    # grading_period_groups / grading_periods, and other server-side job
+    # failures) carry an empty message. In that case fall back to the class
+    # name plus the server-side correlation fields: `type` is the machine
+    # identifier and `uuid` pinpoints the failed job in Instructure's logs,
+    # which is exactly what support needs to investigate.
+    if not message:
+        details = type(exception).__name__
+        error_type = getattr(exception, "type", None)
+        error_uuid = getattr(exception, "uuid", None)
+        if error_type:
+            details += f", type={error_type}"
+        if error_uuid:
+            details += f", uuid={error_uuid}"
+        message = details
+
+    return f"{table_name} - {function_name} - {state}, Error: {message} (<{cloudwatch_log_url}|CloudWatch Log>)"
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)

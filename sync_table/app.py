@@ -8,6 +8,7 @@ from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
 from botocore.config import Config
 from dap.api import DAPClient
+from dap.dap_error import ProcessingError
 from dap.dap_types import Credentials
 from dap.integration.database import DatabaseConnection
 from dap.integration.database_errors import NonExistingTableError
@@ -39,6 +40,13 @@ STATE_COMPLETE = "complete"
 STATE_COMPLETE_WITH_UPDATE = "complete_with_update"
 STATE_NEEDS_INIT = "needs_init"
 STATE_FAILED = "failed"
+
+# A DAP ProcessingError is a server-side job failure on Instructure's end and is
+# frequently transient, so retry the incremental sync a few times with linear
+# backoff before giving up. Only ProcessingError is retried; OutOfRangeError,
+# SnapshotRequiredError, ValidationError, etc. won't self-heal and must fail fast.
+SYNC_MAX_ATTEMPTS = int(os.environ.get("SYNC_MAX_ATTEMPTS", "3"))
+SYNC_RETRY_BASE_DELAY_SECONDS = int(os.environ.get("SYNC_RETRY_BASE_DELAY_SECONDS", "30"))
 
 def get_ecs_log_url():
     # Get region from env
@@ -113,7 +121,7 @@ def start(event):
 
     try:
         asyncio.get_event_loop().run_until_complete(
-            sync_table(credentials, api_base_url, db_connection, namespace, table_name)
+            sync_table_with_retry(credentials, api_base_url, db_connection, namespace, table_name)
         )
 
         event["state"] = STATE_COMPLETE
@@ -164,6 +172,24 @@ def start(event):
 async def sync_table(credentials, api_base_url, db_connection, namespace, table_name):
     async with DAPClient(api_base_url, credentials) as session:
         await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+
+
+async def sync_table_with_retry(credentials, api_base_url, db_connection, namespace, table_name):
+    # Re-open a fresh DAPClient session on each attempt (new auth + connection)
+    # rather than reusing a session that just hit a server-side job failure.
+    for attempt in range(1, SYNC_MAX_ATTEMPTS + 1):
+        try:
+            await sync_table(credentials, api_base_url, db_connection, namespace, table_name)
+            return
+        except ProcessingError:
+            if attempt == SYNC_MAX_ATTEMPTS:
+                raise
+            delay = SYNC_RETRY_BASE_DELAY_SECONDS * attempt
+            logger.warning(
+                f"DAP ProcessingError syncing {namespace}.{table_name} "
+                f"(attempt {attempt}/{SYNC_MAX_ATTEMPTS}); retrying in {delay}s"
+            )
+            await asyncio.sleep(delay)
 
 
 def drop_dependencies(db_name, table_name):

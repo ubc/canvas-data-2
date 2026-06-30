@@ -8,6 +8,7 @@ from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities import parameters
 from botocore.config import Config
 from dap.api import DAPClient
+from dap.dap_error import ProcessingError
 from dap.dap_types import Credentials
 from dap.integration.database import DatabaseConnection
 from dap.integration.database_errors import NonExistingTableError
@@ -40,6 +41,13 @@ STATE_COMPLETE_WITH_UPDATE = "complete_with_update"
 STATE_NEEDS_INIT = "needs_init"
 STATE_FAILED = "failed"
 
+# A DAP ProcessingError is a server-side job failure on Instructure's end and is
+# frequently transient, so retry the incremental sync a few times with linear
+# backoff before giving up. Only ProcessingError is retried; OutOfRangeError,
+# SnapshotRequiredError, ValidationError, etc. won't self-heal and must fail fast.
+SYNC_MAX_ATTEMPTS = int(os.environ.get("SYNC_MAX_ATTEMPTS", "3"))
+SYNC_RETRY_BASE_DELAY_SECONDS = int(os.environ.get("SYNC_RETRY_BASE_DELAY_SECONDS", "30"))
+
 def get_ecs_log_url():
     # Get region from env
     region = os.environ.get('AWS_REGION', 'ca-central-1')  # fallback if not set
@@ -62,13 +70,25 @@ def get_ecs_log_url():
     return log_url
 
 def generate_error_string(function_name, table_name, state, exception, cloudwatch_log_url):
-    if len(str(exception)) != 0:
-        return f"{table_name} - {function_name} - {state}, Error: {str(exception)} (<{cloudwatch_log_url}|CloudWatch Log>)"
+    message = str(exception)
 
-    # This is for the ProcessingError thrown by the tables: grading_period_groups and grading_periods.
-    # This particular error object doesn't have any error message. In this case, we use the name of the class of an exception object.
-    else:
-        return f"{table_name} - {function_name} - {state}, Error: {type(exception).__name__} (<{cloudwatch_log_url}|CloudWatch Log>)"
+    # DAP OperationError subclasses (e.g. the ProcessingError raised for
+    # grading_period_groups / grading_periods, and other server-side job
+    # failures) carry an empty message. In that case fall back to the class
+    # name plus the server-side correlation fields: `type` is the machine
+    # identifier and `uuid` pinpoints the failed job in Instructure's logs,
+    # which is exactly what support needs to investigate.
+    if not message:
+        details = type(exception).__name__
+        error_type = getattr(exception, "type", None)
+        error_uuid = getattr(exception, "uuid", None)
+        if error_type:
+            details += f", type={error_type}"
+        if error_uuid:
+            details += f", uuid={error_uuid}"
+        message = details
+
+    return f"{table_name} - {function_name} - {state}, Error: {message} (<{cloudwatch_log_url}|CloudWatch Log>)"
 
 def start(event):
     params = ssm_provider.get_multiple(param_path, max_age=600, decrypt=True)
@@ -101,7 +121,7 @@ def start(event):
 
     try:
         asyncio.get_event_loop().run_until_complete(
-            sync_table(credentials, api_base_url, db_connection, namespace, table_name)
+            sync_table_with_retry(credentials, api_base_url, db_connection, namespace, table_name)
         )
 
         event["state"] = STATE_COMPLETE
@@ -152,6 +172,24 @@ def start(event):
 async def sync_table(credentials, api_base_url, db_connection, namespace, table_name):
     async with DAPClient(api_base_url, credentials) as session:
         await SQLReplicator(session, db_connection).synchronize(namespace, table_name)
+
+
+async def sync_table_with_retry(credentials, api_base_url, db_connection, namespace, table_name):
+    # Re-open a fresh DAPClient session on each attempt (new auth + connection)
+    # rather than reusing a session that just hit a server-side job failure.
+    for attempt in range(1, SYNC_MAX_ATTEMPTS + 1):
+        try:
+            await sync_table(credentials, api_base_url, db_connection, namespace, table_name)
+            return
+        except ProcessingError:
+            if attempt == SYNC_MAX_ATTEMPTS:
+                raise
+            delay = SYNC_RETRY_BASE_DELAY_SECONDS * attempt
+            logger.warning(
+                f"DAP ProcessingError syncing {namespace}.{table_name} "
+                f"(attempt {attempt}/{SYNC_MAX_ATTEMPTS}); retrying in {delay}s"
+            )
+            await asyncio.sleep(delay)
 
 
 def drop_dependencies(db_name, table_name):
